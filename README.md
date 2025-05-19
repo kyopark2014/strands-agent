@@ -212,6 +212,10 @@ with stdio_mcp_client as client:
 
 ![image](https://github.com/user-attachments/assets/d7a99236-185b-4361-8cbf-e5a45de07319)
 
+MCP를 설정하고 "strand에 대해 설명해주세요."라고 질문하면 아래와 같은 결과를 얻습니다.
+
+![image](https://github.com/user-attachments/assets/f46e7f47-65e0-49d8-a5c0-49e834ff5de8)
+
 
 ## Reference
 
