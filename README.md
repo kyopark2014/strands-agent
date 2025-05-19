@@ -127,6 +127,13 @@ def run_strands_agent(question, history_mode, st):
     return full_response
 ```
 
+## 실행 결과
+
+"us-west-2의 AWS bucket 리스트는?"와 같이 입력하면, aws cli를 통해 필요한 operation을 수행하고 얻어진 결과를 아래와 같이 보여줍니다.
+
+![image](https://github.com/user-attachments/assets/d7a99236-185b-4361-8cbf-e5a45de07319)
+
+
 ## Reference
 
 
