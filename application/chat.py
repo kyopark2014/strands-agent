@@ -6,6 +6,7 @@ import uuid
 import json
 import logging
 import sys
+import asyncio
 
 from botocore.config import Config
 from strands import Agent
@@ -92,7 +93,6 @@ def get_model():
                 }
             }
         )
-
     return model
 
 def create_agent():
@@ -113,53 +113,28 @@ def create_agent():
             use_aws    
         ],
     )
-
     return agent
-
 
 def run_strands_agent(question, history_mode, st):
     agent = create_agent()
     
-    with st.status("thinking...", expanded=True, state="running") as status:    
-        response = agent(question)
-        logger.info(f"response: {response}")
+    message_placeholder = st.empty()
+    full_response = ""
 
-        for msg in agent.messages:
-            if "role" in msg:
-                if msg["role"] == "assistant":
-                    if "content" in msg:
-                        content = msg["content"]
+    async def process_streaming_response():
+        nonlocal full_response
+        agent_stream = agent.stream_async(question)
+        async for event in agent_stream:
+            if "current_tool_use" in event and event["current_tool_use"].get("name"):
+                #tool_name = event["current_tool_use"]["name"]
+                #logger.info(f"tool: {tool_name}")
+                logger.info((f"tool: {event['current_tool_use']}"))
 
-                        if isinstance(content, list):
-                            if "text" in content[0]:
-                                logger.info(f"Assistant: {content[0]['text']}")
-                                st.info(f"{content[0]['text']}")
+            if "data" in event:
+                full_response += event["data"]
+                # 스트리밍 메시지를 실시간으로 업데이트
+                message_placeholder.markdown(full_response)
 
-                            if "toolUse" in content[0]:
-                                logger.info("Tool Use:")
-                                tool_use = content[0]["toolUse"]
-                                logger.info(f"\tToolUseId: {tool_use['toolUseId']}")
-                                logger.info(f"\tname: {tool_use['name']}")
-                                logger.info(f"\tinput: {tool_use['input']}")
+    asyncio.run(process_streaming_response())
 
-                                st.info(f"{tool_use['name']}: {tool_use['input']}")
-
-        # metrics
-        logger.info(response.metrics)
-
-        # all messages
-        logger.info(f"messages: {agent.messages}")
-
-        st.markdown(response)
-
-
-        # print("Assistant: ", response.content)
-        # print("Metrics: ", response.metrics)
-        # print("Messages: ", response.messages)
-        # print("Tool Use: ", response.messages[0]["content"][0]["toolUse"])
-        # print("Tool Result: ", response.messages[0]["content"][0]["toolResult"])
-        # print("=====================================")
-        
-        st.session_state.messages.append({"role": "assistant", "content": response})
-
-        return response
+    return full_response

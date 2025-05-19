@@ -127,3 +127,6 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             chat.references = []
             chat.image_url = []
             response = chat.run_strands_agent(prompt, "Enable", st)
+
+    st.session_state.messages.append({"role": "assistant", "content": response})
+    
