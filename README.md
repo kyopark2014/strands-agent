@@ -140,6 +140,29 @@ def run_strands_agent(question, history_mode, st):
     return full_response
 ```
 
+### 대화 이력의 활용
+
+대화 내용을 이용해 대화를 이어나가고자 할 경우에 아래와 같이 SlidingWindowConversationManager을 이용해서 window_size만큼 이전 대화를 가져와 활용할 수 있습니다.
+
+```python
+from strands.agent.conversation_manager import SlidingWindowConversationManager
+
+conversation_manager = SlidingWindowConversationManager(
+    window_size=10,  
+)
+
+agent = Agent(
+    model=model,
+    system_prompt=system,
+    tools=[    
+        calculator, 
+        current_time,
+        use_aws    
+    ],
+    conversation_manager=conversation_manager
+)
+```
+
 ## 실행 결과
 
 "us-west-2의 AWS bucket 리스트는?"와 같이 입력하면, aws cli를 통해 필요한 operation을 수행하고 얻어진 결과를 아래와 같이 보여줍니다.
