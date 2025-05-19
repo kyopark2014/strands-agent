@@ -115,12 +115,12 @@ conversation_manager = SlidingWindowConversationManager(
 
 is_agent_initiate = False
 
-# AWS 문서 MCP 서버
+# MCP AWS documentation
 documentation_mcp_client = MCPClient(lambda: stdio_client(
     StdioServerParameters(command="uvx", args=["awslabs.aws-documentation-mcp-server@latest"])
 ))
 
-# AWS 다이어그램 MCP 서버
+# MCP Wikipedia
 wikipedia_mcp_client = MCPClient(lambda: stdio_client(
     StdioServerParameters(command="python", args=["application/mcp_server_wikipedia.py"])
 ))
@@ -137,13 +137,13 @@ def create_agent(history_mode):
     try:
         tools = [calculator, current_time, use_aws]
         
-        # AWS 문서 도구 추가
+        # MCP AWS documentation
         with documentation_mcp_client as client:
             documentation_tools = client.list_tools_sync()
             logger.info(f"documentation_tools: {documentation_tools}")
             tools.extend(documentation_tools)
             
-        # AWS 다이어그램 도구 추가
+        # MCP Wikipedia
         with wikipedia_mcp_client as client:
             wikipedia_tools = client.list_tools_sync()
             logger.info(f"wikipedia_tools: {wikipedia_tools}")
