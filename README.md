@@ -155,3 +155,5 @@ def run_strands_agent(question, history_mode, st):
 [Strands Agents Samples](https://github.com/strands-agents/samples/tree/main)
 
 [Example Built-in Tools](https://strandsagents.com/0.1.x/user-guide/concepts/tools/example-tools-package/)
+
+[Introducing Strands Agents, an Open Source AI Agents SDK](https://aws.amazon.com/ko/blogs/opensource/introducing-strands-agents-an-open-source-ai-agents-sdk/)
