@@ -10,6 +10,8 @@ Strands agent는 AI agent 구축 및 실행을 위해 설계된 오픈소스 SDK
 
 ## Model 설정
 
+모델 설정과 관련된 paramter는 아래와 같습니다.
+
 - max_tokens: Maximum number of tokens to generate in the response
 - model_id: The Bedrock model ID (e.g., "us.anthropic.claude-3-7-sonnet-20250219-v1:0")
 - stop_sequences: List of sequences that will stop generation when encountered
@@ -25,3 +27,108 @@ Strands agent는 AI agent 구축 및 실행을 위해 설계된 오픈소스 SDK
 - guardrail_redact_input_message: If a Bedrock Input guardrail triggers, replace the input with this message.
 - guardrail_redact_output: Flag to redact output if guardrail is triggered. Defaults to False.
 - guardrail_redact_output_message: If a Bedrock Output guardrail triggers, replace output with this message.
+
+Reasoning mode와 standard mode의 설정이 다르므로 아래와 같이 설정합니다.
+
+```python
+def get_model():
+    profile = models[0]
+    if profile['model_type'] == 'nova':
+        STOP_SEQUENCE = '"\n\n<thinking>", "\n<thinking>", " <thinking>"'
+    elif profile['model_type'] == 'claude':
+        STOP_SEQUENCE = "\n\nHuman:" 
+
+    if model_type == 'claude':
+        maxOutputTokens = 4096 # 4k
+    else:
+        maxOutputTokens = 5120 # 5k
+
+    maxReasoningOutputTokens=64000
+    thinking_budget = min(maxOutputTokens, maxReasoningOutputTokens-1000)
+
+    if reasoning_mode=='Enable':
+        model = BedrockModel(
+            boto_client_config=Config(
+               read_timeout=900,
+               connect_timeout=900,
+               retries=dict(max_attempts=3, mode="adaptive"),
+            ),
+            model_id=model_id,
+            max_tokens=64000,
+            stop_sequences = [STOP_SEQUENCE],
+            temperature = 1,
+            additional_request_fields={
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": thinking_budget,
+                }
+            },
+        )
+    else:
+        model = BedrockModel(
+            boto_client_config=Config(
+               read_timeout=900,
+               connect_timeout=900,
+               retries=dict(max_attempts=3, mode="adaptive"),
+            ),
+            model_id=model_id,
+            max_tokens=maxOutputTokens,
+            stop_sequences = [STOP_SEQUENCE],
+            temperature = 0.1,
+            top_p = 0.9,
+            additional_request_fields={
+                "thinking": {
+                    "type": "disabled"
+                }
+            }
+        )
+    return model
+```
+
+## Agent의 실행
+
+아래와 같이 system prompt, model, tool 정보를 가지고 agent를 생성합니다.
+
+```python
+def create_agent():
+    system = (
+        "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
+        "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
+        "모르는 질문을 받으면 솔직히 모른다고 말합니다."
+    )
+
+    model = get_model()
+
+    agent = Agent(
+        model=model,
+        system_prompt=system,
+        tools=[    
+            calculator, 
+            current_time,
+            use_aws    
+        ],
+    )
+    return agent
+```
+
+Agent는 stream으로 결과를 주므로, 아래와 같이 event에서 "data"만을 추출한 후에 full_response로 저장한 후에 markdown으로 표시합니다. 
+
+```python
+def run_strands_agent(question, history_mode, st):
+    agent = create_agent()
+    
+    message_placeholder = st.empty()
+    full_response = ""
+
+    async def process_streaming_response():
+        nonlocal full_response
+        agent_stream = agent.stream_async(question)
+        async for event in agent_stream:
+            if "data" in event:
+                full_response += event["data"]
+                message_placeholder.markdown(full_response)
+
+    asyncio.run(process_streaming_response())
+
+    return full_response
+```
