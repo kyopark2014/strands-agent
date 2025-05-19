@@ -15,7 +15,9 @@ agent = Agent(
 )
 ```
 
-## Model 설정
+## Strands Agent 활용 방법
+
+### Model 설정
 
 모델 설정과 관련된 paramter는 아래와 같습니다.
 
@@ -92,7 +94,7 @@ def get_model():
     return model
 ```
 
-## Agent의 실행
+### Agent의 실행
 
 아래와 같이 system prompt, model, tool 정보를 가지고 agent를 생성합니다.
 
@@ -161,6 +163,47 @@ agent = Agent(
     ],
     conversation_manager=conversation_manager
 )
+```
+
+### MCP 활용
+
+아래와 같이 MCPClient로 stdio_mcp_client을 지정한 후에 list_tools_sync을 이용해 tool 정보를 추출합니다. MCP tool은 strands tool과 함께 아래처럼 사용할 수 있습니다.
+
+```python
+from strands.tools.mcp import MCPClient
+from strands_tools import calculator, current_time, use_aws
+
+stdio_mcp_client = MCPClient(lambda: stdio_client(
+    StdioServerParameters(command="uvx", args=["awslabs.aws-documentation-mcp-server@latest"])
+))
+
+with stdio_mcp_client as client:
+    aws_documentation_tools = client.list_tools_sync()
+    logger.info(f"aws_documentation_tools: {aws_documentation_tools}")
+
+    tools=[    
+        calculator, 
+        current_time,
+        use_aws
+    ]
+
+    tools.extend(aws_documentation_tools)
+
+    if history_mode == "Enable":
+        logger.info("history_mode: Enable")
+        agent = Agent(
+            model=model,
+            system_prompt=system,
+            tools=tools,
+            conversation_manager=conversation_manager
+        )
+    else:
+        logger.info("history_mode: Disable")
+        agent = Agent(
+            model=model,
+            system_prompt=system,
+            tools=tools
+        )
 ```
 
 ## 실행 결과
