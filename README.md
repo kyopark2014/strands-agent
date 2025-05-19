@@ -143,7 +143,7 @@ def run_strands_agent(question, history_mode, st):
 
 ### 대화 이력의 활용
 
-대화 내용을 이용해 대화를 이어나가고자 할 경우에 아래와 같이 SlidingWindowConversationManager을 이용해서 window_size만큼 이전 대화를 가져와 활용할 수 있습니다.
+대화 내용을 이용해 대화를 이어나가고자 할 경우에 아래와 같이 SlidingWindowConversationManager을 이용해서 window_size만큼 이전 대화를 가져와 활용할 수 있습니다. 상세한 코드는 [chat.py](./application/chat.py)을 참조합니다.
 
 ```python
 from strands.agent.conversation_manager import SlidingWindowConversationManager
@@ -203,6 +203,55 @@ with stdio_mcp_client as client:
             system_prompt=system,
             tools=tools
         )
+```
+
+또한, wikipedia 검색을 위한 MCP server의 예는 아래와 같습니다. 상세한 코드는 [mcp_server_wikipedia.py](./application/mcp_server_wikipedia.py)을 참조합니다.
+
+```python
+from mcp.server.fastmcp import FastMCP
+import wikipedia
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.INFO,  # Default to INFO level
+    format='%(filename)s:%(lineno)d | %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stderr)
+    ]
+)
+logger = logging.getLogger("rag")
+
+mcp = FastMCP(
+    "Wikipedia",
+    dependencies=["wikipedia"],
+)
+
+@mcp.tool()
+def search(query: str):
+    logger.info(f"Searching Wikipedia for: {query}")
+    
+    return wikipedia.search(query)
+
+@mcp.tool()
+def summary(query: str):
+    return wikipedia.summary(query)
+
+@mcp.tool()
+def page(query: str):
+    return wikipedia.page(query)
+
+@mcp.tool()
+def random():
+    return wikipedia.random()
+
+@mcp.tool()
+def set_lang(lang: str):
+    wikipedia.set_lang(lang)
+    return f"Language set to {lang}"
+
+if __name__ == "__main__":
+    mcp.run()
 ```
 
 ## 실행 결과
