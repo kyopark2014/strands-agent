@@ -115,8 +115,14 @@ conversation_manager = SlidingWindowConversationManager(
 
 is_agent_initiate = False
 
-stdio_mcp_client = MCPClient(lambda: stdio_client(
+# AWS 문서 MCP 서버
+documentation_mcp_client = MCPClient(lambda: stdio_client(
     StdioServerParameters(command="uvx", args=["awslabs.aws-documentation-mcp-server@latest"])
+))
+
+# AWS 다이어그램 MCP 서버
+wikipedia_mcp_client = MCPClient(lambda: stdio_client(
+    StdioServerParameters(command="python", args=["application/mcp_server_wikipedia.py"])
 ))
 
 def create_agent(history_mode):
@@ -129,36 +135,37 @@ def create_agent(history_mode):
     model = get_model()
 
     try:
-        with stdio_mcp_client as client:
-            aws_documentation_tools = client.list_tools_sync()
-            logger.info(f"aws_documentation_tools: {aws_documentation_tools}")
+        tools = [calculator, current_time, use_aws]
+        
+        # AWS 문서 도구 추가
+        with documentation_mcp_client as client:
+            documentation_tools = client.list_tools_sync()
+            logger.info(f"documentation_tools: {documentation_tools}")
+            tools.extend(documentation_tools)
+            
+        # AWS 다이어그램 도구 추가
+        with wikipedia_mcp_client as client:
+            wikipedia_tools = client.list_tools_sync()
+            logger.info(f"wikipedia_tools: {wikipedia_tools}")
+            tools.extend(wikipedia_tools)
 
-            tools=[    
-                calculator, 
-                current_time,
-                use_aws
-            ]
-
-            tools.extend(aws_documentation_tools)
-
-            if history_mode == "Enable":
-                logger.info("history_mode: Enable")
-                agent = Agent(
-                    model=model,
-                    system_prompt=system,
-                    tools=tools,
-                    conversation_manager=conversation_manager
-                )
-            else:
-                logger.info("history_mode: Disable")
-                agent = Agent(
-                    model=model,
-                    system_prompt=system,
-                    tools=tools
-                )
+        if history_mode == "Enable":
+            logger.info("history_mode: Enable")
+            agent = Agent(
+                model=model,
+                system_prompt=system,
+                tools=tools,
+                conversation_manager=conversation_manager
+            )
+        else:
+            logger.info("history_mode: Disable")
+            agent = Agent(
+                model=model,
+                system_prompt=system,
+                tools=tools
+            )
     except Exception as e:
-        logger.error(f"Error initializing AWS documentation client: {e}")
-        # AWS 문서 도구 없이 기본 도구로만 에이전트 생성
+        logger.error(f"Error initializing MCP clients: {e}")
         agent = Agent(
             model=model,
             system_prompt=system,
@@ -179,17 +186,12 @@ def run_strands_agent(question, history_mode, st):
     async def process_streaming_response():
         nonlocal full_response
         try:
-            with stdio_mcp_client as client:
+            with documentation_mcp_client as doc_client, wikipedia_mcp_client as diagram_client:
                 agent_stream = agent.stream_async(question)
                 async for event in agent_stream:
                     if "data" in event:
                         full_response += event["data"]
                         message_placeholder.markdown(full_response)
-                    # else:
-                    #     if "current_tool_use" in event and event["current_tool_use"].get("name"):                    
-                    #         name = event["current_tool_use"].get("name")
-                    #         input = event["current_tool_use"].get("input")
-                    #         logger.info(f"name: {name}, input: {input}")
         except Exception as e:
             logger.error(f"Error in streaming response: {e}")
             message_placeholder.markdown("죄송합니다. 응답을 생성하는 중에 오류가 발생했습니다.")
