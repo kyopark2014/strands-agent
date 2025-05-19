@@ -3,7 +3,7 @@ import sys
 
 from strands import Agent
 from strands.models import BedrockModel
-from strands_tools import calculator, current_time
+from strands_tools import calculator, current_time, use_aws
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
@@ -40,12 +40,14 @@ agent = Agent(
     system_prompt=system_prompt,
     tools=[    
         calculator, 
-        current_time    
+        current_time,
+        use_aws    
     ],
 )
 
 # Ask the agent a question
-question = "현재 시간은?"
+#question = "현재 시간은?"
+question = "내 스토리지 현황은?"
 result = agent(question)
 logger.info(result)
 
