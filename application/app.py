@@ -40,7 +40,7 @@ with st.sidebar:
     
     # radio selection
     mode = st.radio(
-        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)"], index=1
+        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)"], index=0
     )   
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)

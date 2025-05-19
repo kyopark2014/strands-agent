@@ -13,6 +13,8 @@ from strands import Agent
 from strands.models import BedrockModel
 from strands_tools import calculator, current_time, use_aws
 
+from strands.agent.conversation_manager import SlidingWindowConversationManager
+
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
     format='%(filename)s:%(lineno)d | %(message)s',
@@ -30,7 +32,7 @@ models = info.get_model_info(model_name)
 reasoning_mode = 'Disable'
 
 def update(modelName, reasoningMode):    
-    global model_name, model_id, model_type, debug_mode, multi_region
+    global model_name, model_id, model_type, reasoning_mode
     
     if model_name != modelName:
         model_name = modelName
@@ -39,6 +41,15 @@ def update(modelName, reasoningMode):
         model_id = models[0]["model_id"]
         model_type = models[0]["model_type"]
 
+    if reasoningMode != reasoning_mode:
+        reasoning_mode = reasoningMode
+        logger.info(f"reasoning_mode: {reasoning_mode}")
+
+def initiate():
+    global userId    
+    userId = uuid.uuid4().hex
+    logger.info(f"userId: {userId}")
+    
 #########################################################
 # Strands Agent 
 #########################################################
@@ -95,7 +106,12 @@ def get_model():
         )
     return model
 
-def create_agent():
+conversation_manager = SlidingWindowConversationManager(
+    window_size=10,  
+)
+
+is_agent_initiate = False
+def create_agent(history_mode):
     system = (
         "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
         "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
@@ -104,20 +120,38 @@ def create_agent():
 
     model = get_model()
 
-    agent = Agent(
-        model=model,
-        system_prompt=system,
-        tools=[    
-            calculator, 
-            current_time,
-            use_aws    
-        ],
-    )
+    if history_mode == "Enable":
+        logger.info("history_mode: Enable")
+        agent = Agent(
+            model=model,
+            system_prompt=system,
+            tools=[    
+                calculator, 
+                current_time,
+                use_aws    
+            ],
+            conversation_manager=conversation_manager
+        )
+    else:
+        logger.info("history_mode: Disable")
+        agent = Agent(
+            model=model,
+            system_prompt=system,
+            tools=[    
+                calculator, 
+                current_time,
+                use_aws    
+            ],
+        )
+
     return agent
 
 def run_strands_agent(question, history_mode, st):
-    agent = create_agent()
-    
+    global agent, is_agent_initiate
+    if not is_agent_initiate:
+        agent = create_agent(history_mode)
+        is_agent_initiate = True
+
     message_placeholder = st.empty()
     full_response = ""
 
@@ -125,16 +159,16 @@ def run_strands_agent(question, history_mode, st):
         nonlocal full_response
         agent_stream = agent.stream_async(question)
         async for event in agent_stream:
-            if "current_tool_use" in event and event["current_tool_use"].get("name"):
-                #tool_name = event["current_tool_use"]["name"]
-                #logger.info(f"tool: {tool_name}")
-                logger.info((f"tool: {event['current_tool_use']}"))
-
             if "data" in event:
                 full_response += event["data"]
-                # 스트리밍 메시지를 실시간으로 업데이트
                 message_placeholder.markdown(full_response)
+            # else:
+            #     if "current_tool_use" in event and event["current_tool_use"].get("name"):                    
+            #         name = event["current_tool_use"].get("name")
+            #         input = event["current_tool_use"].get("input")
+            #         logger.info(f"name: {name}, input: {input}")
 
     asyncio.run(process_streaming_response())
 
     return full_response
+
