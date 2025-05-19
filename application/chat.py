@@ -12,8 +12,11 @@ from botocore.config import Config
 from strands import Agent
 from strands.models import BedrockModel
 from strands_tools import calculator, current_time, use_aws
-
 from strands.agent.conversation_manager import SlidingWindowConversationManager
+
+from strands.tools.mcp import MCPClient
+from mcp import stdio_client, StdioServerParameters
+
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
@@ -111,6 +114,11 @@ conversation_manager = SlidingWindowConversationManager(
 )
 
 is_agent_initiate = False
+
+stdio_mcp_client = MCPClient(lambda: stdio_client(
+    StdioServerParameters(command="uvx", args=["awslabs.aws-documentation-mcp-server@latest"])
+))
+
 def create_agent(history_mode):
     system = (
         "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
@@ -120,28 +128,41 @@ def create_agent(history_mode):
 
     model = get_model()
 
-    if history_mode == "Enable":
-        logger.info("history_mode: Enable")
-        agent = Agent(
-            model=model,
-            system_prompt=system,
+    try:
+        with stdio_mcp_client as client:
+            aws_documentation_tools = client.list_tools_sync()
+            logger.info(f"aws_documentation_tools: {aws_documentation_tools}")
+
             tools=[    
                 calculator, 
                 current_time,
-                use_aws    
-            ],
-            conversation_manager=conversation_manager
-        )
-    else:
-        logger.info("history_mode: Disable")
+                use_aws
+            ]
+
+            tools.extend(aws_documentation_tools)
+
+            if history_mode == "Enable":
+                logger.info("history_mode: Enable")
+                agent = Agent(
+                    model=model,
+                    system_prompt=system,
+                    tools=tools,
+                    conversation_manager=conversation_manager
+                )
+            else:
+                logger.info("history_mode: Disable")
+                agent = Agent(
+                    model=model,
+                    system_prompt=system,
+                    tools=tools
+                )
+    except Exception as e:
+        logger.error(f"Error initializing AWS documentation client: {e}")
+        # AWS 문서 도구 없이 기본 도구로만 에이전트 생성
         agent = Agent(
             model=model,
             system_prompt=system,
-            tools=[    
-                calculator, 
-                current_time,
-                use_aws    
-            ],
+            tools=[calculator, current_time, use_aws]
         )
 
     return agent
@@ -157,16 +178,21 @@ def run_strands_agent(question, history_mode, st):
 
     async def process_streaming_response():
         nonlocal full_response
-        agent_stream = agent.stream_async(question)
-        async for event in agent_stream:
-            if "data" in event:
-                full_response += event["data"]
-                message_placeholder.markdown(full_response)
-            # else:
-            #     if "current_tool_use" in event and event["current_tool_use"].get("name"):                    
-            #         name = event["current_tool_use"].get("name")
-            #         input = event["current_tool_use"].get("input")
-            #         logger.info(f"name: {name}, input: {input}")
+        try:
+            with stdio_mcp_client as client:
+                agent_stream = agent.stream_async(question)
+                async for event in agent_stream:
+                    if "data" in event:
+                        full_response += event["data"]
+                        message_placeholder.markdown(full_response)
+                    # else:
+                    #     if "current_tool_use" in event and event["current_tool_use"].get("name"):                    
+                    #         name = event["current_tool_use"].get("name")
+                    #         input = event["current_tool_use"].get("input")
+                    #         logger.info(f"name: {name}, input: {input}")
+        except Exception as e:
+            logger.error(f"Error in streaming response: {e}")
+            message_placeholder.markdown("죄송합니다. 응답을 생성하는 중에 오류가 발생했습니다.")
 
     asyncio.run(process_streaming_response())
 
