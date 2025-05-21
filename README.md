@@ -254,6 +254,32 @@ if __name__ == "__main__":
     mcp.run()
 ```
 
+## Stands Agent 활용하기
+
+Repository를 clone 합니다.
+
+```text
+git clone https://github.com/kyopark2014/strands-agent/
+```
+
+필요한 라이브러리를 설치합니다. 여기서 필요한 라이브러리는 strands-agents, strands-agents-tools 입니다.
+
+```python
+cd strands-agent && pip install -r requirements.txt"
+```
+
+만약 streamlit이 설치되어 있지 않다면 [streamlit](https://docs.streamlit.io/get-started/installation)을 참조하여 설치합니다. 이후 아래와 같이 실행합니다.
+
+```text
+streamlit run application/app.py
+```
+
+실행하면 아래와 같은 화면이 보여집니다. Agent를 선택하면 Sprends agent를 실행하고 동작을 확인할 수 있습니다. Agent(Chat)을 선택하면 대화 이력을 포함한 동작을 확인합니다. 모델 버튼을 클릭해서 적절한 모델을 선택할 수 있습니다. 
+
+![image](https://github.com/user-attachments/assets/6f847df4-2444-4a55-bd5b-5614ce1251cb)
+
+
+
 ## 실행 결과
 
 "us-west-2의 AWS bucket 리스트는?"와 같이 입력하면, aws cli를 통해 필요한 operation을 수행하고 얻어진 결과를 아래와 같이 보여줍니다.
