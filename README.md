@@ -265,7 +265,7 @@ git clone https://github.com/kyopark2014/strands-agent/
 필요한 라이브러리를 설치합니다. 여기서 필요한 라이브러리는 strands-agents, strands-agents-tools 입니다.
 
 ```python
-cd strands-agent && pip install -r requirements.txt"
+cd strands-agent && pip install -r requirements.txt
 ```
 
 만약 streamlit이 설치되어 있지 않다면 [streamlit](https://docs.streamlit.io/get-started/installation)을 참조하여 설치합니다. 이후 아래와 같이 실행합니다.
