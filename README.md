@@ -301,3 +301,5 @@ MCP로 wikipedia를 설정하고 "strand에 대해 설명해주세요."라고 �
 [Example Built-in Tools](https://strandsagents.com/0.1.x/user-guide/concepts/tools/example-tools-package/)
 
 [Introducing Strands Agents, an Open Source AI Agents SDK](https://aws.amazon.com/ko/blogs/opensource/introducing-strands-agents-an-open-source-ai-agents-sdk/)
+
+[use_aws.py](https://github.com/strands-agents/tools/blob/main/src/strands_tools/use_aws.py)
