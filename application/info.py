@@ -70,6 +70,42 @@ nova_micro_models = [   # Nova Micro
     }
 ]
 
+claude_4_opus_models = [   # Opus 4
+    {
+        "bedrock_region": "us-west-2", # Oregon
+        "model_type": "claude",
+        "model_id": "us.anthropic.claude-opus-4-20250514-v1:0"
+    },
+    {
+        "bedrock_region": "us-east-1", # N.Virginia
+        "model_type": "claude",
+        "model_id": "us.anthropic.claude-4-opus-20250514-v1:0"
+    },
+    {
+        "bedrock_region": "us-east-2", # Ohio
+        "model_type": "claude",
+        "model_id": "us.anthropic.claude-4-opus-20250514-v1:0"
+    }
+]
+
+claude_4_sonnet_models = [   # Sonnet 4
+    {
+        "bedrock_region": "us-west-2", # Oregon
+        "model_type": "claude",
+        "model_id": "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    },
+    {
+        "bedrock_region": "us-east-1", # N.Virginia
+        "model_type": "claude",
+        "model_id": "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    },
+    {
+        "bedrock_region": "us-east-2", # Ohio
+        "model_type": "claude",
+        "model_id": "us.anthropic.claude-4-sonnet-20250219-v1:0"
+    }
+]
+
 claude_3_7_sonnet_models = [   # Sonnet 3.7
     {
         "bedrock_region": "us-west-2", # Oregon
@@ -172,6 +208,10 @@ def get_model_info(model_name):
         models = claude_3_5_sonnet_v2_models
     elif model_name == "Claude 3.5 Haiku":
         models = claude_3_5_haiku_models
+    elif model_name == "Claude 4 Opus":
+        models = claude_4_opus_models
+    elif model_name == "Claude 4 Sonnet":
+        models = claude_4_sonnet_models
     elif model_name == "Nova Premier":
         models = nova_premier
 
