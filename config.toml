@@ -1,0 +1,7 @@
+[server]
+port=8501
+maxUploadSize = 100
+
+[theme]
+base="dark"
+primaryColor="#fff700"
