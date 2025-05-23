@@ -1,2 +1,6 @@
 strands-agents
 strands-agents-tools
+vanna
+chromadb
+openai
+pandas

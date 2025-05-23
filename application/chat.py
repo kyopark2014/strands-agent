@@ -125,6 +125,11 @@ wikipedia_mcp_client = MCPClient(lambda: stdio_client(
     StdioServerParameters(command="python", args=["application/mcp_server_wikipedia.py"])
 ))
 
+# MCP Vanna
+vanna_mcp_client = MCPClient(lambda: stdio_client(
+    StdioServerParameters(command="python", args=["application/mcp_server_vanna.py"])
+))
+
 def create_agent(history_mode):
     system = (
         "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
@@ -148,6 +153,16 @@ def create_agent(history_mode):
             wikipedia_tools = client.list_tools_sync()
             logger.info(f"wikipedia_tools: {wikipedia_tools}")
             tools.extend(wikipedia_tools)
+
+        # MCP Vanna
+        try:
+            with vanna_mcp_client as client:
+                vanna_tools = client.list_tools_sync()
+                logger.info(f"Vanna tools: {vanna_tools}")
+                tools.extend(vanna_tools)
+        except Exception as e:
+            logger.error(f"Error initializing Vanna MCP client or listing tools: {e}")
+            # Optionally, decide if you want to proceed without Vanna tools or re-raise
 
         if history_mode == "Enable":
             logger.info("history_mode: Enable")
@@ -186,7 +201,7 @@ def run_strands_agent(question, history_mode, st):
     async def process_streaming_response():
         nonlocal full_response
         try:
-            with documentation_mcp_client as doc_client, wikipedia_mcp_client as diagram_client:
+            with documentation_mcp_client as doc_client, wikipedia_mcp_client as diagram_client, vanna_mcp_client as vn_client:
                 agent_stream = agent.stream_async(question)
                 async for event in agent_stream:
                     if "data" in event:
