@@ -34,8 +34,8 @@ model_id = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
 models = info.get_model_info(model_name)
 reasoning_mode = 'Disable'
 
-def update(modelName, reasoningMode):    
-    global model_name, model_id, model_type, reasoning_mode
+def update(modelName, reasoningMode, debugMode):    
+    global model_name, model_id, model_type, reasoning_mode, debug_mode
     
     if model_name != modelName:
         model_name = modelName
@@ -47,6 +47,10 @@ def update(modelName, reasoningMode):
     if reasoningMode != reasoning_mode:
         reasoning_mode = reasoningMode
         logger.info(f"reasoning_mode: {reasoning_mode}")
+
+    if debugMode != debug_mode:
+        debug_mode = debugMode
+        logger.info(f"debug_mode: {debug_mode}")
 
 def initiate():
     global userId    
@@ -114,6 +118,8 @@ conversation_manager = SlidingWindowConversationManager(
 )
 
 is_agent_initiate = False
+tools = []  
+status_container = None 
 
 # MCP AWS documentation
 documentation_mcp_client = MCPClient(lambda: stdio_client(
@@ -126,6 +132,7 @@ wikipedia_mcp_client = MCPClient(lambda: stdio_client(
 ))
 
 def create_agent(history_mode):
+    global tools, status_container  # 전역 변수 사용 선언
     system = (
         "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
         "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
@@ -163,7 +170,25 @@ def create_agent(history_mode):
                 model=model,
                 system_prompt=system,
                 tools=tools
+                #max_parallel_tools=2
             )
+
+        tool_list = []
+        for tool in tools:
+            # MCP tool
+            if hasattr(tool, 'tool_name'):
+                tool_list.append(tool.tool_name)
+            
+            # strands_tools 
+            if str(tool).startswith("<module 'strands_tools."):
+                module_name = str(tool).split("'")[1].split('.')[-1]
+                tool_list.append(module_name)
+
+        logger.info(f"Tools: {tool_list}")
+
+        if debug_mode == 'Enable':
+            status_container.info(f"Tools: {tool_list}")
+
     except Exception as e:
         logger.error(f"Error initializing MCP clients: {e}")
         agent = Agent(
@@ -175,7 +200,9 @@ def create_agent(history_mode):
     return agent
 
 def run_strands_agent(question, history_mode, st):
-    global agent, is_agent_initiate
+    global agent, is_agent_initiate, status_container  # status_container를 전역 변수로 사용
+    status_container = st.empty()
+
     if not is_agent_initiate:
         agent = create_agent(history_mode)
         is_agent_initiate = True

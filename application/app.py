@@ -48,15 +48,19 @@ with st.sidebar:
     # model selection box
     modelName = st.selectbox(
         '🖊️ 사용 모델을 선택하세요',
-        ('Claude 4 Opus', 'Claude 4 Sonnet', 'Claude 3.7 Sonnet', 'Claude 3.5 Sonnet', 'Claude 3.0 Sonnet', 'Claude 3.5 Haiku'), index=1
+        ('Claude 4 Opus', 'Claude 4 Sonnet', 'Claude 3.7 Sonnet', 'Claude 3.5 Sonnet', 'Claude 3.0 Sonnet', 'Claude 3.5 Haiku'), index=3
     )
+
+    # debug checkbox
+    select_debugMode = st.checkbox('Debug Mode', value=True)
+    debugMode = 'Enable' if select_debugMode else 'Disable'
     
     # extended thinking of claude 3.7 sonnet
-    select_reasoning = st.checkbox('Reasonking', value=False)
+    select_reasoning = st.checkbox('Reasoning', value=False)
     reasoningMode = 'Enable' if select_reasoning else 'Disable'
     logger.info(f"reasoningMode: {reasoningMode}")
 
-    chat.update(modelName, reasoningMode)
+    chat.update(modelName, reasoningMode, debugMode)
     
     st.success(f"Connected to {modelName}", icon="💚")
     clear_button = st.button("대화 초기화", key="clear")
