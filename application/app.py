@@ -16,6 +16,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("streamlit")
 
+os.environ["BYPASS_TOOL_CONSENT"] = "true"  
+os.environ["STRANDS_DEV"] = "true"  # Skip user confirmation for use_aws tool
+os.environ["DEV"] = "true"  # Skip user confirmation for python_repl tool
+
 # title
 st.set_page_config(page_title='Strands Agent', page_icon=None, layout="centered", initial_sidebar_state="auto", menu_items=None)
 

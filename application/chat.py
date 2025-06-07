@@ -7,11 +7,12 @@ import json
 import logging
 import sys
 import asyncio
+import os
 
 from botocore.config import Config
 from strands import Agent
 from strands.models import BedrockModel
-from strands_tools import calculator, current_time, use_aws
+from strands_tools import calculator, current_time, use_aws, python_repl
 from strands.agent.conversation_manager import SlidingWindowConversationManager
 
 from strands.tools.mcp import MCPClient
@@ -26,6 +27,8 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("chat")
+
+os.environ["STRANDS_DEV"] = "true"  # Skip user confirmation for use_aws tool
 
 model_name = "Claude 3.7 Sonnet"
 model_type = "claude"
@@ -132,7 +135,7 @@ wikipedia_mcp_client = MCPClient(lambda: stdio_client(
 ))
 
 def create_agent(history_mode):
-    global tools, status_container  # 전역 변수 사용 선언
+    global tools, status_container
     system = (
         "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
         "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
@@ -142,7 +145,7 @@ def create_agent(history_mode):
     model = get_model()
 
     try:
-        tools = [calculator, current_time, use_aws]
+        tools = [calculator, current_time, use_aws, python_repl]
         
         # MCP AWS documentation
         with documentation_mcp_client as client:
@@ -199,6 +202,21 @@ def create_agent(history_mode):
 
     return agent
 
+async def process_streaming_response(question, message_placeholder):
+    full_response = ""
+    try:
+        with documentation_mcp_client as doc_client, wikipedia_mcp_client as diagram_client:
+            agent_stream = agent.stream_async(question)
+            async for event in agent_stream:
+                if "data" in event:
+                    full_response += event["data"]
+                    message_placeholder.markdown(full_response)
+    except Exception as e:
+        logger.error(f"Error in streaming response: {e}")
+        message_placeholder.markdown("Sorry, an error occurred while generating a response.")
+
+    return full_response
+            
 def run_strands_agent(question, history_mode, st):
     global agent, is_agent_initiate, status_container  # status_container를 전역 변수로 사용
     status_container = st.empty()
@@ -208,22 +226,8 @@ def run_strands_agent(question, history_mode, st):
         is_agent_initiate = True
 
     message_placeholder = st.empty()
-    full_response = ""
-
-    async def process_streaming_response():
-        nonlocal full_response
-        try:
-            with documentation_mcp_client as doc_client, wikipedia_mcp_client as diagram_client:
-                agent_stream = agent.stream_async(question)
-                async for event in agent_stream:
-                    if "data" in event:
-                        full_response += event["data"]
-                        message_placeholder.markdown(full_response)
-        except Exception as e:
-            logger.error(f"Error in streaming response: {e}")
-            message_placeholder.markdown("죄송합니다. 응답을 생성하는 중에 오류가 발생했습니다.")
-
-    asyncio.run(process_streaming_response())
+    
+    full_response = asyncio.run(process_streaming_response(question, message_placeholder))
 
     return full_response
 
