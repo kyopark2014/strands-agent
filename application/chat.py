@@ -18,7 +18,6 @@ from strands.agent.conversation_manager import SlidingWindowConversationManager
 from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
 
-
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
     format='%(filename)s:%(lineno)d | %(message)s',
@@ -35,8 +34,14 @@ model_id = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
 models = info.get_model_info(model_name)
 reasoning_mode = 'Disable'
 
-def update(modelName, reasoningMode, debugMode):    
-    global model_name, model_id, model_type, reasoning_mode, debug_mode
+os.environ["AWS_DEFAULT_REGION"] = "us-west-2"
+
+strands_tools = []
+mcp_tools = []
+
+is_updated = False
+def update(modelName, reasoningMode, debugMode, selected_strands_tools, selected_mcp_tools):    
+    global model_name, model_id, model_type, reasoning_mode, debug_mode, strands_tools, mcp_tools, is_updated
     
     if model_name != modelName:
         model_name = modelName
@@ -52,6 +57,16 @@ def update(modelName, reasoningMode, debugMode):
     if debugMode != debug_mode:
         debug_mode = debugMode
         logger.info(f"debug_mode: {debug_mode}")
+    
+    if selected_strands_tools != strands_tools:
+        strands_tools = selected_strands_tools
+        logger.info(f"strands_tools: {strands_tools}")
+        is_updated = True
+
+    if selected_mcp_tools != mcp_tools:
+        mcp_tools = selected_mcp_tools
+        logger.info(f"mcp_tools: {mcp_tools}")
+        is_updated = True
 
 def initiate():
     global userId    
@@ -132,6 +147,11 @@ wikipedia_mcp_client = MCPClient(lambda: stdio_client(
     StdioServerParameters(command="python", args=["application/mcp_server_wikipedia.py"])
 ))
 
+# MCP use_ase
+aws_cli_mcp_client = MCPClient(lambda: stdio_client(
+    StdioServerParameters(command="python", args=["application/mcp_server_aws_cli.py"])
+))
+
 def create_agent(history_mode):
     global tools, status_container
     system = (
@@ -143,19 +163,39 @@ def create_agent(history_mode):
     model = get_model()
 
     try:
-        tools = [calculator, current_time, use_aws, python_repl]
+        # Convert tool names to actual tool objects
+        tools = []
+        tool_map = {
+            "calculator": calculator,
+            "current_time": current_time,
+            "use_aws": use_aws,
+            "python_repl": python_repl
+        }
+        
+        for tool_name in strands_tools:
+            if tool_name in tool_map:
+                tools.append(tool_map[tool_name])
         
         # MCP AWS documentation
-        with documentation_mcp_client as client:
-            documentation_tools = client.list_tools_sync()
-            logger.info(f"documentation_tools: {documentation_tools}")
-            tools.extend(documentation_tools)
+        if "AWS documentation" in mcp_tools:
+            with documentation_mcp_client as client:
+                documentation_tools = client.list_tools_sync()
+                logger.info(f"documentation_tools: {documentation_tools}")
+                tools.extend(documentation_tools)
             
         # MCP Wikipedia
-        with wikipedia_mcp_client as client:
-            wikipedia_tools = client.list_tools_sync()
-            logger.info(f"wikipedia_tools: {wikipedia_tools}")
-            tools.extend(wikipedia_tools)
+        if "Wikipedia" in mcp_tools:
+            with wikipedia_mcp_client as client:
+                wikipedia_tools = client.list_tools_sync()
+                logger.info(f"wikipedia_tools: {wikipedia_tools}")
+                tools.extend(wikipedia_tools)
+
+        # MCP use_aws
+        if "aws_cli" in mcp_tools:
+            with aws_cli_mcp_client as client:
+                aws_cli_tools = client.list_tools_sync()
+                logger.info(f"aws_cli_tools: {aws_cli_tools}")
+                tools.extend(aws_cli_tools)
 
         if history_mode == "Enable":
             logger.info("history_mode: Enable")
@@ -203,7 +243,7 @@ def create_agent(history_mode):
 async def process_streaming_response(question, message_placeholder):
     full_response = ""
     try:
-        with documentation_mcp_client as doc_client, wikipedia_mcp_client as diagram_client:
+        with documentation_mcp_client, wikipedia_mcp_client, aws_cli_mcp_client:
             agent_stream = agent.stream_async(question)
             async for event in agent_stream:
                 if "data" in event:
@@ -216,12 +256,13 @@ async def process_streaming_response(question, message_placeholder):
     return full_response
             
 def run_strands_agent(question, history_mode, st):
-    global agent, is_agent_initiate, status_container  # status_container를 전역 변수로 사용
+    global agent, is_agent_initiate, status_container, is_updated
     status_container = st.empty()
 
-    if not is_agent_initiate:
+    if not is_agent_initiate or is_updated:
         agent = create_agent(history_mode)
         is_agent_initiate = True
+        is_updated = False
 
     message_placeholder = st.empty()
     

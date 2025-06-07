@@ -47,6 +47,38 @@ with st.sidebar:
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)
 
+    strands_tools = ["calculator", "current_time", "python_repl", "use_aws"]
+    mcp_tools = ["AWS documentation", "Wikipedia", "aws_cli"]
+    mcp_options = strands_tools + mcp_tools
+
+    mcp_selections = {}
+    default_selections = ["current_time", "python_repl", "aws_cli"]
+
+    with st.expander("MCP 옵션 선택", expanded=True):            
+        # Create two columns
+        col1, col2 = st.columns(2)
+        
+        # Split options into two groups
+        mid_point = len(mcp_options) // 2
+        first_half = mcp_options[:mid_point]
+        second_half = mcp_options[mid_point:]
+        
+        # Display first group in the first column
+        with col1:
+            for option in first_half:
+                default_value = option in default_selections
+                mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+        
+        # Display second group in the second column
+        with col2:
+            for option in second_half:
+                default_value = option in default_selections
+                mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+
+    # Get selected strands_tools from mcp_selections
+    selected_strands_tools = [tool for tool in strands_tools if mcp_selections.get(tool, False)]
+    selected_mcp_tools = [tool for tool in mcp_tools if mcp_selections.get(tool, False)]
+
     # model selection box
     modelName = st.selectbox(
         '🖊️ 사용 모델을 선택하세요',
@@ -62,7 +94,7 @@ with st.sidebar:
     reasoningMode = 'Enable' if select_reasoning else 'Disable'
     logger.info(f"reasoningMode: {reasoningMode}")
 
-    chat.update(modelName, reasoningMode, debugMode)
+    chat.update(modelName, reasoningMode, debugMode, selected_strands_tools, selected_mcp_tools)
     
     st.success(f"Connected to {modelName}", icon="💚")
     clear_button = st.button("대화 초기화", key="clear")
