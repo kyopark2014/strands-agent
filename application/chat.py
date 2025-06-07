@@ -28,8 +28,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("chat")
 
-os.environ["STRANDS_DEV"] = "true"  # Skip user confirmation for use_aws tool
-
 model_name = "Claude 3.7 Sonnet"
 model_type = "claude"
 debug_mode = "Enable"
