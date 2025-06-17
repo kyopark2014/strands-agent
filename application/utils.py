@@ -28,3 +28,11 @@ def get_contents_type(file_name):
     else:
         content_type = "no info"    
     return content_type
+
+def load_config():
+    config = None
+    
+    with open("application/config.json", "r", encoding="utf-8") as f:
+        config = json.load(f)
+    
+    return config

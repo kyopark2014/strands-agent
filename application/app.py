@@ -3,7 +3,8 @@ import chat
 import utils
 import json
 import os
-
+import mcp_config 
+import asyncio
 import logging
 import sys
 
@@ -47,10 +48,10 @@ with st.sidebar:
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)
 
-    strands_tools = ["calculator", "current_time", "python_repl", "use_aws"]
-    mcp_tools = ["AWS documentation", "Wikipedia", "aws_cli"]
+    strands_tools = chat.available_strands_tools # available tool of strands agent
+    mcp_tools = chat.available_mcp_tools # available tool of mcp    
     mcp_options = strands_tools + mcp_tools
-
+    
     mcp_selections = {}
     default_selections = ["current_time", "python_repl", "aws_cli"]
 
@@ -79,6 +80,17 @@ with st.sidebar:
     selected_strands_tools = [tool for tool in strands_tools if mcp_selections.get(tool, False)]
     selected_mcp_tools = [tool for tool in mcp_tools if mcp_selections.get(tool, False)]
 
+    if mcp_selections["사용자 설정"]:
+        mcp_info = st.text_area(
+            "MCP 설정을 JSON 형식으로 입력하세요",
+            value=mcp_config.mcp_user_config,
+            height=150
+        )
+        logger.info(f"mcp_info: {mcp_info}")
+
+        if mcp_info:
+            mcp_config.mcp_user_config = json.loads(mcp_info)
+            logger.info(f"mcp_user_config: {mcp_config.mcp_user_config}")
     # model selection box
     modelName = st.selectbox(
         '🖊️ 사용 모델을 선택하세요',
@@ -117,13 +129,13 @@ def display_chat_messages():
     """
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
+            st.markdown(message["content"])
             if "images" in message:                
                 for url in message["images"]:
                     logger.info(f"url: {url}")
 
                     file_name = url[url.rfind('/')+1:]
-                    st.image(url, caption=file_name, use_container_width=True)
-            st.markdown(message["content"])
+                    st.image(url, caption=file_name, use_container_width=True)            
 
 display_chat_messages()
 
@@ -152,19 +164,29 @@ if prompt := st.chat_input("메시지를 입력하세요."):
     st.session_state.messages.append({"role": "user", "content": prompt})  # add user message to chat history
     prompt = prompt.replace('"', "").replace("'", "")
     logger.info(f"prompt: {prompt}")
+    logger.info(f"is_updated: {chat.is_updated}")
 
     with st.chat_message("assistant"):
         if mode == 'Agent':
-            sessionState = ""
-            chat.references = []
-            chat.image_url = []
-            response = chat.run_strands_agent(prompt, "Disable", st)
-
+            history_mode = "Disable"
         elif mode == 'Agent (Chat)':
-            sessionState = ""
-            chat.references = []
-            chat.image_url = []
-            response = chat.run_strands_agent(prompt, "Enable", st)
+            history_mode = "Enable"
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+        tool_container = st.empty()
+        status_container = st.empty()
+        response_container = st.empty()          
+        key_container = st.empty()
+        
+        response, image_urls = asyncio.run(chat.run_agent(prompt, history_mode, tool_container, status_container, response_container, key_container))
+        
+        for url in image_urls:
+            logger.info(f"url: {url}")
+            file_name = url[url.rfind('/')+1:]
+            st.image(url, caption=file_name, use_container_width=True)      
+
+        st.session_state.messages.append({
+            "role": "assistant", 
+            "content": response,
+            "images": image_urls if image_urls else []
+        })
     
