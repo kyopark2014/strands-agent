@@ -254,6 +254,135 @@ if __name__ == "__main__":
     mcp.run()
 ```
 
+### 동적으로 MCP Server를 binding하기
+
+MCP Server를 동적으로 관리하기 위하여 MCPClientManager를 정의합니다. add_client는 MCP 서버의 name, command, args, env로 MCP Client를 정의합니다. 
+
+```python
+class MCPClientManager:
+    def __init__(self):
+        self.clients: Dict[str, MCPClient] = {}
+        
+    def add_client(self, name: str, command: str, args: List[str], env: dict[str, str] = {}) -> None:
+        """Add a new MCP client"""
+        self.clients[name] = MCPClient(lambda: stdio_client(
+            StdioServerParameters(
+                command=command, args=args, env=env
+            )
+        ))
+    
+    def remove_client(self, name: str) -> None:
+        """Remove an MCP client"""
+        if name in self.clients:
+            del self.clients[name]
+    
+    @contextmanager
+    def get_active_clients(self, active_clients: List[str]):
+        """Manage active clients context"""
+        active_contexts = []
+        for client_name in active_clients:
+            if client_name in self.clients:
+                active_contexts.append(self.clients[client_name])
+
+        if active_contexts:
+            with contextlib.ExitStack() as stack:
+                for client in active_contexts:
+                    stack.enter_context(client)
+                yield
+        else:
+            yield
+
+# Initialize MCP client manager
+mcp_manager = MCPClientManager()
+```
+
+Streamlit으로 구현한 [app.py](./application/app.py)에서 tool들을 선택하면 mcp_tools를 얻을 수 있습니다. 이후 아래와 같이 agent 생성시에 active client으로 부터 tool list를 가져와서 tools로 활용합니다.
+
+```python
+tools = []
+for mcp_tool in mcp_tools:
+    logger.info(f"mcp_tool: {mcp_tool}")
+    with mcp_manager.get_active_clients([mcp_tool]) as _:
+        if mcp_tool in mcp_manager.clients:
+            client = mcp_manager.clients[mcp_tool]
+            mcp_tools_list = client.list_tools_sync()
+            tools.extend(mcp_tools_list)
+```
+
+tools 정보는 아래와 같이 agent 생성시 활용됩니다.
+
+```python
+agent = Agent(
+    model=model,
+    system_prompt=system,
+    tools=tools
+)
+```
+
+생성된 agent는 아래와 같이 mcp_manager를 이용해 실행합니다.
+
+```python
+with mcp_manager.get_active_clients(mcp_tools) as _:
+    agent_stream = agent.stream_async(question)
+    
+    tool_name = ""
+    async for event in agent_stream:
+        if "message" in event:
+            message = event["message"]
+            for content in message["content"]:                
+                if "text" in content:
+                    final_response = content["text"]
+```
+
+### Streamlit에 맞게 출력문 조정하기
+
+상기와 같이 agent 실행시에 event stream에서 message의 text를 사용하면 진행과정을 보여줄 수 없습니다. 결과를 얻기까지의 과정을 보여주면 사용자의 신뢰도를 높이고, 추가 질문을 통해 더 나은 결과를 얻을 수 있습니다. 따라서 아래와 같이 current_response는 event의 data로 전달되는 스트림 형태의 결과물을 모아서 보여줍니다. 또한 message의 data로 개행 여부를 파악하여 처리합니다. 또한 사용된 tool의 이름과 입력값을 toolUse로 부터 추출하고, streamlit에서 status_container로 보여줍니다. 또한 tool의 실행 결과는 toolResult로 부터 추출합니다. Agent의 실행 결과는 text 또는 파일로 구성됩니다. 파일일 경우에는 tool의 동작에 따라 포맷이 상이합니다. 여기에서는 event_loop_metrics를 이용해 generate_image_with_colors라는 tool이 생성한 이미지 파일을 image_urls로 추출할 수 있었습니다.
+
+```python
+    with mcp_manager.get_active_clients(mcp_tools) as _:
+        agent_stream = agent.stream_async(question)
+        
+        tool_name = ""
+        async for event in agent_stream:
+            if "message" in event:
+                message = event["message"]
+                for content in message["content"]:                
+                    if "text" in content:
+                        current_response += '\n\n'
+                        final_response = content["text"]
+
+                    if "toolUse" in content:
+                        tool_use = content["toolUse"]                        
+                        tool_name = tool_use["name"]
+                        input = tool_use["input"]
+                        status_container.info(f"tool name: {tool_name}, arg:: {input}")
+                
+                    if "toolResult" in content:
+                        tool_result = content["toolResult"]
+                        if "content" in tool_result:
+                            tool_content = tool_result["content"]
+                            for content in tool_content:
+                                if "text" in content:
+                                    response_container.info(f"tool result: {content["text"]}")
+
+            if "event_loop_metrics" in event and \
+                hasattr(event["event_loop_metrics"], "tool_metrics") and \
+                "generate_image_with_colors" in event["event_loop_metrics"].tool_metrics:
+                tool_info = event["event_loop_metrics"].tool_metrics["generate_image_with_colors"].tool
+                if "input" in tool_info and "filename" in tool_info["input"]:
+                    fname = tool_info["input"]["filename"]
+                    if fname:
+                        url = f"{path}/{s3_image_prefix}/{parse.quote(fname)}.png"
+                        if url not in image_urls:
+                            image_urls.append(url)
+
+            if "data" in event:
+                text_data = event["data"]
+                current_response += text_data
+                key_container.markdown(current_response)
+                continue
+```
+
 ## Stands Agent 활용하기
 
 Repository를 clone 합니다.
@@ -280,7 +409,7 @@ streamlit run application/app.py
 
 
 
-## 실행 결과
+### 실행 결과
 
 "us-west-2의 AWS bucket 리스트는?"와 같이 입력하면, aws cli를 통해 필요한 operation을 수행하고 얻어진 결과를 아래와 같이 보여줍니다.
 
