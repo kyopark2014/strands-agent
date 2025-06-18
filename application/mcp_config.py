@@ -162,18 +162,6 @@ def load_config(mcp_type):
             }
         }
     
-    elif mcp_type == "aws_rag":
-        return {
-            "mcpServers": {
-                "aws_storage": {
-                    "command": "python",
-                    "args": [
-                        "application/mcp_server_rag.py"
-                    ]
-                }
-            }
-        }    
-    
     elif mcp_type == "code_interpreter":
         return {
             "mcpServers": {
@@ -210,6 +198,7 @@ def load_config(mcp_type):
                 }
             }
         }
+    
     elif mcp_type == "wikipedia":
         return {
             "mcpServers": {
@@ -413,8 +402,6 @@ def load_config_by_name(name):
         config = load_config('aws_cloudwatch')
     elif name == "aws storage":
         config = load_config('aws_storage')
-    elif name == "knowledge base":
-        config = load_config('aws_rag')
     elif name == "code interpreter":
         config = load_config('code_interpreter')
     elif name == "aws cli":
@@ -423,7 +410,7 @@ def load_config_by_name(name):
         config = load_config('text_editor')
     else:
         config = load_config(name)
-    logger.info(f"config: {config}")
+    # logger.info(f"config: {config}")
     return config
 
 def load_selected_config(mcp_selections: dict[str, bool]):

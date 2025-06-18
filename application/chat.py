@@ -69,11 +69,12 @@ available_strands_tools = ["calculator", "current_time"]
 available_mcp_tools = [
     "basic", "code interpreter", "aws document", "aws cost", "aws cli", 
     "use_aws", "aws cloudwatch", "aws storage", "image generation", "aws diagram",
-    "knowledge base", "tavily", "perplexity", "ArXiv", "wikipedia", 
+    "aws_cloudwatch_logs", "aws_knowledge_base",
+    "perplexity", "ArXiv", "wikipedia", "tavily-manual",
     "filesystem", "terminal", "text editor", "context7", "puppeteer", 
     "playwright", "obsidian", "airbnb", 
-    "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "tavily-manual",                
-    "aws_cloudwatch_logs", "aws_knowledge_base", "사용자 설정"
+    "pubmed", "chembl", "clinicaltrial", "arxiv-manual",
+    "사용자 설정"
 ]
 
 mcp_selections = []
@@ -490,11 +491,11 @@ class MCPClientManager:
         active_contexts = []
         try:
             for client_name in active_clients:
-                logger.info(f"client_name: {client_name}")
+                #logger.info(f"client_name: {client_name}")
                 if client_name in self.clients:
                     active_contexts.append(self.clients[client_name])
 
-            logger.info(f"active_contexts: {active_contexts}")
+            # logger.info(f"active_contexts: {active_contexts}")
             if active_contexts:
                 with contextlib.ExitStack() as stack:
                     for client in active_contexts:
@@ -515,11 +516,11 @@ def init_mcp_clients():
     
     for tool in available_mcp_tools:
         config = mcp_config.load_config_by_name(tool)
-        logger.info(f"config: {config}")
+        # logger.info(f"config: {config}")
 
         # Skip if config is empty or doesn't have mcpServers
         if not config or "mcpServers" not in config:
-            logger.warning(f"No configuration found for tool: {tool}")
+            # logger.warning(f"No configuration found for tool: {tool}")
             continue
 
         # Get the first key from mcpServers
@@ -531,7 +532,7 @@ def init_mcp_clients():
         args = server_config["args"]
         env = server_config.get("env", {})  # Use empty dict if env is not present
         
-        logger.info(f"name: {name}, command: {command}, args: {args}, env: {env}")        
+        # logger.info(f"name: {name}, command: {command}, args: {args}, env: {env}")        
 
         mcp_manager.add_client(name, command, args, env)
 
@@ -659,16 +660,16 @@ def create_agent(history_mode, tool_container):
         global tool_list
         tool_list = []
         for tool in tools:
-            logger.info(f"tool: {tool}")
+            # logger.info(f"tool: {tool}")
             # MCP tool
             if hasattr(tool, 'tool_name'):
-                logger.info(f"MCP tool name: {tool.tool_name}")
+                # logger.info(f"MCP tool name: {tool.tool_name}")
                 tool_list.append(tool.tool_name)
             
             # strands_tools 
             if str(tool).startswith("<module 'strands_tools."):
                 module_name = str(tool).split("'")[1].split('.')[-1]
-                logger.info(f"Strands tool name: {module_name}")
+                # logger.info(f"Strands tool name: {module_name}")
                 tool_list.append(module_name)
 
         logger.info(f"Tools: {tool_list}")
@@ -710,10 +711,6 @@ async def run_agent(question, history_mode, tool_container, status_container, re
             if "message" in event:
                 message = event["message"]
                 logger.info(f"message: {message}")
-                logger.info(f"content: {message["content"]}")
-
-                # role = message["role"]
-                # logger.info(f"role: {role}")
 
                 for content in message["content"]:                
                     if "text" in content:
