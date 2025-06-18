@@ -433,7 +433,7 @@ config.json은 strands agent의 동작에 필요한 정보를 가지고 있고, 
 streamlit run application/app.py
 ```
 
-실행하면 아래와 같은 화면이 보여집니다. Agent를 선택하면 Sprends agent를 실행하고 동작을 확인할 수 있습니다. Agent(Chat)을 선택하면 대화 이력을 포함한 동작을 확인합니다. 모델 버튼을 클릭해서 적절한 모델을 선택할 수 있습니다. 
+실행하면 아래와 같은 화면이 보여집니다. Agent를 선택하면 Strands agent를 실행하고 동작을 확인할 수 있습니다. 적절한 MCP 서버와 모델을 필요에 따라 선택하여 활용합니다. 
 
 ![image](https://github.com/user-attachments/assets/36337750-9321-452b-a59b-2fa611ef576d)
 
