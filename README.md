@@ -434,3 +434,5 @@ MCP로 wikipedia를 설정하고 "strand에 대해 설명해주세요."라고 �
 [use_aws.py](https://github.com/strands-agents/tools/blob/main/src/strands_tools/use_aws.py)
 
 [Strands Agents와 오픈 소스 AI 에이전트 SDK 살펴보기](https://aws.amazon.com/ko/blogs/tech/introducing-strands-agents-an-open-source-ai-agents-sdk/)
+
+[Drug Discovery Agent based on Amazon Bedrock](https://github.com/hsr87/drug-discovery-agent)
