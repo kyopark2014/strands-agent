@@ -739,6 +739,19 @@ async def run_agent(question, history_mode, tool_container, status_container, re
                                 if "text" in content and debug_mode == 'Enable':
                                     response_container.info(f"tool result: {content["text"]}")
 
+                                    try:
+                                        json_data = json.loads(content["text"])
+                                        if isinstance(json_data, dict) and "path" in json_data:
+                                            paths = json_data["path"]
+                                            logger.info(f"paths: {paths}")
+                                            for path in paths:
+                                                if path.startswith("http"):
+                                                    image_urls.append(path)
+                                                    logger.info(f"Added image URL: {path}")
+                                    except json.JSONDecodeError:
+                                        pass
+                                        
+
             if "event_loop_metrics" in event and \
                 hasattr(event["event_loop_metrics"], "tool_metrics") and \
                 "generate_image_with_colors" in event["event_loop_metrics"].tool_metrics:

@@ -76,13 +76,13 @@ def create_daily_cost_visualizations() -> list:
 
     return cost.create_daily_cost_visualizations()
 
-@mcp.tool()
-def create_region_cost_visualizations() -> list:
-    """
-    create a graph to show region aws cost
-    """
+# @mcp.tool()
+# def create_region_cost_visualizations() -> list:
+#     """
+#     create a graph to show region aws cost
+#     """
 
-    return cost.create_region_cost_visualizations()
+#     return cost.create_region_cost_visualizations()
 
 
 @mcp.tool()
