@@ -1,12 +1,14 @@
 import streamlit as st 
 import chat
-import utils
 import json
 import os
 import mcp_config 
 import asyncio
 import logging
 import sys
+import knowledge_base as kb
+
+from langchain.docstore.document import Document
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
@@ -35,7 +37,7 @@ with st.sidebar:
     st.title("🔮 Menu")
     
     st.markdown(
-        "Stands Agent SDK를 이용하여 다양한 형태의 Agent를 구현합니다." 
+        "Stands Agent SDK를 이용하여 효율적인 Agent를 구현합니다." 
         "상세한 코드는 [Github](https://github.com/kyopark2014/strands-agent)을 참조하세요."
     )
 
@@ -53,7 +55,7 @@ with st.sidebar:
     mcp_options = strands_tools + mcp_tools
     
     mcp_selections = {}
-    default_selections = ["current_time", "python_repl", "aws_cli"]
+    default_selections = ["basic", "filesystem", "use_aws"]
 
     with st.expander("MCP 옵션 선택", expanded=True):            
         # Create two columns
@@ -106,6 +108,12 @@ with st.sidebar:
     reasoningMode = 'Enable' if select_reasoning else 'Disable'
     logger.info(f"reasoningMode: {reasoningMode}")
 
+    uploaded_file = None
+    if mode=="Agent" or mode=="Agent (Chat)":
+        st.subheader("📋 문서 업로드")
+        # print('fileId: ', chat.fileId)
+        uploaded_file = st.file_uploader("RAG를 위한 파일을 선택합니다.", type=["pdf", "txt", "py", "md", "csv", "json"], key=chat.fileId)
+
     chat.update(modelName, reasoningMode, debugMode, selected_strands_tools, selected_mcp_tools)
     
     st.success(f"Connected to {modelName}", icon="💚")
@@ -149,13 +157,46 @@ if not st.session_state.greetings:
         st.session_state.greetings = True
 
 if clear_button or "messages" not in st.session_state:
-    st.session_state.messages = []        
+    st.session_state.messages = []     
+    uploaded_file = None   
     
     st.session_state.greetings = False
     st.rerun()
 
     chat.clear_chat_history()
+
+file_name = ""
+if uploaded_file is not None and clear_button==False:
+    logger.info(f"uploaded_file.name: {uploaded_file.name}")
+    if uploaded_file.name:
+        logger.info(f"csv type? {uploaded_file.name.lower().endswith(('.csv'))}")
+
+    if uploaded_file.name:
+        chat.initiate()
+
+        if debugMode=='Enable':
+            status = '선택한 파일을 업로드합니다.'
+            logger.info(f"status: {status}")
+            st.info(status)
+
+        file_name = uploaded_file.name
+        logger.info(f"uploading... file_name: {file_name}")
+        file_url = chat.upload_to_s3(uploaded_file.getvalue(), file_name)
+        logger.info(f"file_url: {file_url}")
+
+        kb.sync_data_source()  # sync uploaded files
             
+        status = f'선택한 "{file_name}"의 내용을 요약합니다.'
+        if debugMode=='Enable':
+            logger.info(f"status: {status}")
+            st.info(status)
+    
+        msg = chat.get_summary_of_uploaded_file(file_name, st)
+        st.session_state.messages.append({"role": "assistant", "content": f"선택한 문서({file_name})를 요약하면 아래와 같습니다.\n\n{msg}"})    
+        logger.info(f"msg: {msg}")
+
+        st.write(msg)
+
 # Always show the chat input
 if prompt := st.chat_input("메시지를 입력하세요."):
     with st.chat_message("user"):  # display user message in chat message container

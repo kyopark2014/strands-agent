@@ -17,26 +17,12 @@ config = utils.load_config()
 print(f"config: {config}")
 
 aws_region = config["region"] if "region" in config else "us-west-2"
+projectName = config["projectName"] if "projectName" in config else "mcp-rag"
 
-tavily_key = ""
-perplexity_key = ""
-weather_key = ""
-def load_keys():
-    global tavily_key, perplexity_key, weather_key
-    try:
-        with open('application/config.json', 'r') as f:
-            config = json.load(f)
-            tavily_key = config.get('tavily_api_key')
-            perplexity_key = config.get('perplexity_key')
-            weather_key = config.get('weather_key')
-    except Exception as e: 
-        logger.info(f"Tavily credential is required: {e}")
-        raise e
-    
 mcp_user_config = {}    
 
 def load_config(mcp_type):
-    if mcp_type == "default":
+    if mcp_type == "basic":
         return {
             "mcpServers": {
                 "search": {
@@ -219,7 +205,7 @@ def load_config(mcp_type):
                     "command": "npx",
                     "args": ["-y", "tavily-mcp@0.1.4"],
                     "env": {
-                        "TAVILY_API_KEY": tavily_key
+                        "TAVILY_API_KEY": chat.tavily_key
                     },
                 }
             }
@@ -280,7 +266,7 @@ def load_config(mcp_type):
                         "perplexity-mcp"
                     ],
                     "env": {
-                        "PERPLEXITY_API_KEY": perplexity_key,
+                        "PERPLEXITY_API_KEY": chat.perplexity_key,
                         "PERPLEXITY_MODEL": "sonar"
                     }
                 }
@@ -403,7 +389,7 @@ def load_config(mcp_type):
                         "application/mcp_server_kb.py"
                     ],
                     "env": {
-                        "KB_INCLUSION_TAG_KEY": "mcp-rag"
+                        "KB_INCLUSION_TAG_KEY": projectName
                     }
                 }
             }
