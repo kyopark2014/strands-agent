@@ -383,7 +383,7 @@ with mcp_manager.get_active_clients(mcp_tools) as _:
                 continue
 ```
 
-## Stands Agent 활용하기
+## 설치하기
 
 Repository를 clone 합니다.
 
@@ -397,6 +397,36 @@ git clone https://github.com/kyopark2014/strands-agent/
 cd strands-agent && pip install -r requirements.txt
 ```
 
+CDK로 구동이 필요한 인프라인 CloudFront, S3, OpenSearch, Knowledge base, tavily, weather등의 secret을 설치합니다. 만약 cdk boootstraping이 안되어 있다면 설치후 수행합니다.
+
+```text
+cd cdk-strands-agent/ && cdk deploy --all
+```
+
+설치가 안료되면, 아래와 같이 "CdkStrandsAgentStack.environmentforstrandsagent"를 복사하여 application/config.json 파일을 생성합니다.
+
+![image](https://github.com/user-attachments/assets/386edb27-ed29-49df-9df1-447b457e70ec)
+
+config.json은 strands agent의 동작에 필요한 정보를 가지고 있고, [.gitignore](./application/.gitignore)에 의해 git으로 공유 되지 않습니다. 생성된 config.json의 셈플은 아래와 같습니다.
+
+```json
+{
+   "projectName":"strands-agent",
+   "accountId":"923476740234",
+   "region":"us-west-2",
+   "knowledge_base_role":"arn:aws:iam::923476740234:role/role-knowledge-base-for-strands-agent-us-west-2",
+   "collectionArn":"arn:aws:aoss:us-west-2:923476740234:collection/lg29d83r30h8vrj4h4a",
+   "opensearch_url":"https://lg29d83r30h8vrj4h4a.us-west-2.aoss.amazonaws.com",
+   "s3_bucket":"storage-for-strands-agent-923476740234-us-west-2",
+   "s3_arn":"arn:aws:s3:::storage-for-strands-agent-923476740234-us-west-2",
+   "sharing_url":"https://a114n31pi9f63b.cloudfront.net"
+}
+```
+
+이후 [Secret Manager](https://us-west-2.console.aws.amazon.com/secretsmanager/listsecrets?region=us-west-2)에 접속하여 아래와 같은 credential을 입력합니다.
+
+![image](https://github.com/user-attachments/assets/a29ed9ab-86ff-4076-8ca7-7be8122a38a6)
+
 만약 streamlit이 설치되어 있지 않다면 [streamlit](https://docs.streamlit.io/get-started/installation)을 참조하여 설치합니다. 이후 아래와 같이 실행합니다.
 
 ```text
@@ -405,8 +435,7 @@ streamlit run application/app.py
 
 실행하면 아래와 같은 화면이 보여집니다. Agent를 선택하면 Sprends agent를 실행하고 동작을 확인할 수 있습니다. Agent(Chat)을 선택하면 대화 이력을 포함한 동작을 확인합니다. 모델 버튼을 클릭해서 적절한 모델을 선택할 수 있습니다. 
 
-![image](https://github.com/user-attachments/assets/6f847df4-2444-4a55-bd5b-5614ce1251cb)
-
+![image](https://github.com/user-attachments/assets/36337750-9321-452b-a59b-2fa611ef576d)
 
 
 ### 실행 결과
