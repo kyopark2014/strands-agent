@@ -403,7 +403,7 @@ CDK로 구동이 필요한 인프라인 CloudFront, S3, OpenSearch, Knowledge ba
 cd cdk-strands-agent/ && cdk deploy --all
 ```
 
-설치가 안료되면, 아래와 같이 "CdkStrandsAgentStack.environmentforstrandsagent"를 복사하여 application/config.json 파일을 생성합니다.
+설치가 완료되면, 아래와 같이 "CdkStrandsAgentStack.environmentforstrandsagent"를 복사하여 application/config.json 파일을 생성합니다.
 
 ![image](https://github.com/user-attachments/assets/386edb27-ed29-49df-9df1-447b457e70ec)
 
