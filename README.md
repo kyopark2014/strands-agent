@@ -442,16 +442,17 @@ streamlit run application/app.py
 
 "us-west-2의 AWS bucket 리스트는?"와 같이 입력하면, aws cli를 통해 필요한 operation을 수행하고 얻어진 결과를 아래와 같이 보여줍니다.
 
-![image](https://github.com/user-attachments/assets/d7a99236-185b-4361-8cbf-e5a45de07319)
+<img src="https://github.com/user-attachments/assets/d7a99236-185b-4361-8cbf-e5a45de07319" width="500">
+
 
 MCP로 wikipedia를 설정하고 "strand에 대해 설명해주세요."라고 질문하면 wikipedia의 search tool을 이용하여 아래와 같은 결과를 얻습니다.
 
-![image](https://github.com/user-attachments/assets/f46e7f47-65e0-49d8-a5c0-49e834ff5de8)
+<img src="https://github.com/user-attachments/assets/f46e7f47-65e0-49d8-a5c0-49e834ff5de8" width="500">
+
 
 특정 Cloudwatch의 로그를 읽어서, 로그의 특이점을 확인할 수 있습니다.
 
-![image](https://github.com/user-attachments/assets/da48a443-bd53-4c2f-a083-cfcd4e954360)
-
+<img src="https://github.com/user-attachments/assets/da48a443-bd53-4c2f-a083-cfcd4e954360" width="500">
 
 ## Reference
 
