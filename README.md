@@ -448,6 +448,10 @@ MCP로 wikipedia를 설정하고 "strand에 대해 설명해주세요."라고 �
 
 ![image](https://github.com/user-attachments/assets/f46e7f47-65e0-49d8-a5c0-49e834ff5de8)
 
+특정 Cloudwatch의 로그를 읽어서, 로그의 특이점을 확인할 수 있습니다.
+
+![image](https://github.com/user-attachments/assets/da48a443-bd53-4c2f-a083-cfcd4e954360)
+
 
 ## Reference
 
