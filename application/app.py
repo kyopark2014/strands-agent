@@ -7,7 +7,7 @@ import asyncio
 import logging
 import sys
 import knowledge_base as kb
-import agent
+import strands_agent as agent
 
 from langchain.docstore.document import Document
 

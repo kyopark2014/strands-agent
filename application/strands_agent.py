@@ -52,14 +52,25 @@ def add_response(container, message):
     container['notification'][index].markdown(message)
     index += 1
 
+status_msg = []
+def get_status_msg(status):
+    global status_msg
+    status_msg.append(status)
+
+    if status != "end)":
+        status = " -> ".join(status_msg)
+        return "[status]\n" + status + "..."
+    else: 
+        status = " -> ".join(status_msg)
+        return "[status]\n" + status    
+
 #########################################################
 # Strands Agent 
 #########################################################
 def get_model():
-    profile = chat.models[0]
-    if profile['model_type'] == 'nova':
+    if chat.model_type == 'nova':
         STOP_SEQUENCE = '"\n\n<thinking>", "\n<thinking>", " <thinking>"'
-    elif profile['model_type'] == 'claude':
+    elif chat.model_type == 'claude':
         STOP_SEQUENCE = "\n\nHuman:" 
 
     if chat.model_type == 'claude':
@@ -271,7 +282,7 @@ def create_agent(history_mode, containers):
 async def run_agent(question, history_mode, containers):
     final_response = ""
     current_response = ""
-    image_urls = []
+    image_urls = []    
 
     global agent
     if not chat.is_initiated or chat.is_updated:
@@ -282,6 +293,9 @@ async def run_agent(question, history_mode, containers):
     else:
         if chat.debug_mode == 'Enable':
             containers['tool'].info(f"Tools: {tool_list}")
+    
+    if chat.debug_mode == 'Enable':
+        containers['status'].info(get_status_msg(f"(start"))
 
     with mcp_manager.get_active_clients(chat.mcp_tools) as _:
         agent_stream = agent.stream_async(question)
@@ -311,7 +325,8 @@ async def run_agent(question, history_mode, containers):
                         
                         logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                         if chat.debug_mode == 'Enable':       
-                            add_notification(containers, f"tool name: {tool_name}, arg:: {input}")
+                            add_notification(containers, f"tool name: {tool_name}, arg: {input}")
+                            containers['status'].info(get_status_msg(f"{tool_name}"))
                 
                     if "toolResult" in content:
                         tool_result = content["toolResult"]
@@ -353,6 +368,9 @@ async def run_agent(question, history_mode, containers):
                 if chat.debug_mode == 'Enable':
                     containers["notification"][index].markdown(current_response)
                 continue
+
+    if chat.debug_mode == 'Enable':
+        containers['status'].info(get_status_msg(f"end)"))
 
     return final_response, image_urls
             

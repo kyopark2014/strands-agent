@@ -6,7 +6,7 @@ import uuid
 import json
 import logging
 import sys
-import agent
+import strands_agent as agent
 import re
 import PyPDF2
 
