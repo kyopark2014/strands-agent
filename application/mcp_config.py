@@ -3,6 +3,7 @@ import logging
 import sys
 import utils
 import json
+import boto3
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
@@ -20,6 +21,29 @@ aws_region = config["region"] if "region" in config else "us-west-2"
 projectName = config["projectName"] if "projectName" in config else "mcp-rag"
 
 mcp_user_config = {}    
+
+# api key to use perplexity Search
+secretsmanager = boto3.client(
+    service_name='secretsmanager',
+    region_name=aws_region
+)
+
+perplexity_key = ""
+try:
+    get_perplexity_api_secret = secretsmanager.get_secret_value(
+        SecretId=f"perplexityapikey-{projectName}"
+    )
+    #print('get_perplexity_api_secret: ', get_perplexity_api_secret)
+    secret = json.loads(get_perplexity_api_secret['SecretString'])
+    #print('secret: ', secret)
+
+    if "perplexity_api_key" in secret:
+        perplexity_key = secret['perplexity_api_key']
+        #print('perplexity_api_key: ', perplexity_api_key)
+
+except Exception as e: 
+    logger.info(f"perplexity credential is required: {e}")
+    raise e
 
 def load_config(mcp_type):
     if mcp_type == "basic":
@@ -259,7 +283,7 @@ def load_config(mcp_type):
                         "perplexity-mcp"
                     ],
                     "env": {
-                        "PERPLEXITY_API_KEY": chat.perplexity_key,
+                        "PERPLEXITY_API_KEY": perplexity_key,
                         "PERPLEXITY_MODEL": "sonar"
                     }
                 }
@@ -352,7 +376,11 @@ def load_config(mcp_type):
                     "command": "python",
                     "args": [
                         "application/mcp_server_use_aws.py"
-                    ]
+                    ],
+                    "env": {
+                        "AWS_REGION": aws_region,
+                        "FASTMCP_LOG_LEVEL": "ERROR"
+                    }
                 }
             }
         }

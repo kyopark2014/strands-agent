@@ -209,7 +209,7 @@ def use_aws(
     service_name: str,
     operation_name: str,
     parameters: Dict[str, Any],
-    region: str = aws_region,
+    region: Optional[str] = None,
     label: str = "AWS Operation Details",
     profile_name: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -258,6 +258,9 @@ def use_aws(
         - For validation errors, the tool attempts to generate the correct input schema
         - All datetime objects are automatically converted to strings for proper JSON serialization
     """
+    if region is None:
+        region = aws_region
+
     console = aws_utils.create()
 
     # Create a panel for AWS Operation Details

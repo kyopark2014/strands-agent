@@ -7,6 +7,7 @@ import asyncio
 import logging
 import sys
 import knowledge_base as kb
+import agent
 
 from langchain.docstore.document import Document
 
@@ -50,8 +51,8 @@ with st.sidebar:
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)
 
-    strands_tools = chat.available_strands_tools # available tool of strands agent
-    mcp_tools = chat.available_mcp_tools # available tool of mcp    
+    strands_tools = agent.available_strands_tools # available tool of strands agent
+    mcp_tools = agent.available_mcp_tools # available tool of mcp    
     mcp_options = strands_tools + mcp_tools
     
     mcp_selections = {}
@@ -205,7 +206,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
     st.session_state.messages.append({"role": "user", "content": prompt})  # add user message to chat history
     prompt = prompt.replace('"', "").replace("'", "")
     logger.info(f"prompt: {prompt}")
-    logger.info(f"is_updated: {chat.is_updated}")
+    #logger.info(f"is_updated: {agent.is_updated}")
 
     with st.chat_message("assistant"):
         if mode == 'Agent':
@@ -213,12 +214,16 @@ if prompt := st.chat_input("메시지를 입력하세요."):
         elif mode == 'Agent (Chat)':
             history_mode = "Enable"
 
-        tool_container = st.empty()
-        status_container = st.empty()
-        response_container = st.empty()          
-        key_container = st.empty()
+        containers = {
+            "tool": st.empty(),
+            "status": st.empty(),
+            "notification": [st.empty() for _ in range(100)],
+            "key": st.empty()
+        }
         
-        response, image_urls = asyncio.run(chat.run_agent(prompt, history_mode, tool_container, status_container, response_container, key_container))
+        response, image_urls = asyncio.run(agent.run_agent(prompt, history_mode, containers))
+
+        #st.markdown(response)
         
         for url in image_urls:
             logger.info(f"url: {url}")
