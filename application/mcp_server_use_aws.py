@@ -272,7 +272,7 @@ def use_aws(
 
     console.print(Panel(operation_details, title=label, expand=False))
 
-    logger.debug(
+    logger.info(
         "Invoking: service_name = %s, operation_name = %s, parameters = %s" % (service_name, operation_name, parameters)
     )
     
