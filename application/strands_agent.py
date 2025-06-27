@@ -5,8 +5,9 @@ import mcp_config
 import logging
 import sys
 import json
-from urllib import parse
+import utils
 
+from urllib import parse
 from contextlib import contextmanager
 from typing import Dict, List, Optional
 from strands.models import BedrockModel
@@ -33,11 +34,39 @@ available_strands_tools = ["calculator", "current_time"]
 available_mcp_tools = [
     "basic", "code interpreter", "aws document", "aws cost", "aws cli", 
     "use_aws", "aws cloudwatch", "aws storage", "image generation", "aws diagram",
-    "knowledge base", "tavily", "perplexity", "ArXiv", "wikipedia", 
+    "knowledge base", "perplexity", "ArXiv", "wikipedia", 
     "filesystem", "terminal", "text editor", "context7", "puppeteer", 
     "playwright", "firecrawl", "obsidian", "airbnb", 
     "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "tavily-manual", "사용자 설정"
 ]
+
+update_required = False
+initiated = False
+strands_tools = []
+mcp_tools = []
+
+status_msg = []
+response_msg = []
+references = []
+image_url = []
+
+s3_prefix = "docs"
+capture_prefix = "captures"
+
+def update(selected_strands_tools, selected_mcp_tools):    
+    global strands_tools, mcp_tools, update_required
+    
+    if selected_strands_tools != strands_tools:
+        strands_tools = selected_strands_tools
+        update_required = True
+
+    if selected_mcp_tools != mcp_tools:
+        mcp_tools = selected_mcp_tools
+        update_required = True
+        init_mcp_clients()
+
+    logger.info(f"strands_tools: {strands_tools}")
+    logger.info(f"mcp_tools: {mcp_tools}")
 
 index = 0
 def add_notification(container, message):
@@ -61,6 +90,35 @@ def get_status_msg(status):
     else: 
         status = " -> ".join(status_msg)
         return "[status]\n" + status    
+
+def load_config_by_name(name):
+    if name == "image generation":
+        config = mcp_config.load_config('image_generation')
+    elif name == "aws diagram":
+        config = mcp_config.load_config('aws_diagram')
+    elif name == "aws document":
+        config = mcp_config.load_config('aws_documentation')
+    elif name == "aws cost":
+        config = mcp_config.load_config('aws_cost')
+    elif name == "ArXiv":
+        config = mcp_config.load_config('arxiv')
+    elif name == "aws cloudwatch":
+        config = mcp_config.load_config('aws_cloudwatch')
+    elif name == "aws storage":
+        config = mcp_config.load_config('aws_storage')
+    elif name == "knowledge base":
+        config = mcp_config.load_config('knowledge_base_lambda')
+    elif name == "code interpreter":
+        config = mcp_config.load_config('code_interpreter')
+    elif name == "aws cli":
+        config = mcp_config.load_config('aws_cli')
+    elif name == "text editor":
+        config = mcp_config.load_config('text_editor')
+    else:
+        config = mcp_config.load_config(name)
+    logger.info(f"config: {config}")
+    # logger.info(f"config: {config}")
+    return config
 
 #########################################################
 # Strands Agent 
@@ -169,7 +227,7 @@ def init_mcp_clients():
     logger.info(f"available_mcp_tools: {available_mcp_tools}")
     
     for tool in available_mcp_tools:
-        config = mcp_config.load_config_by_name(tool)
+        config = load_config_by_name(tool)
         # logger.info(f"config: {config}")
 
         # Skip if config is empty or doesn't have mcpServers
@@ -212,12 +270,12 @@ def create_agent(history_mode, containers):
             # "python_repl": python_repl  # Temporarily disabled
         }
         
-        for tool_name in chat.strands_tools:
+        for tool_name in strands_tools:
             if tool_name in tool_map:
                 tools.append(tool_map[tool_name])
 
         # MCP tools
-        for mcp_tool in chat.mcp_tools:
+        for mcp_tool in mcp_tools:
             logger.info(f"mcp_tool: {mcp_tool}")
             with mcp_manager.get_active_clients([mcp_tool]) as _:
                 logger.info(f"mcp_manager.clients: {mcp_manager.clients}")
@@ -277,20 +335,254 @@ def create_agent(history_mode, containers):
 
     return agent
 
-async def run_agent(question, history_mode, containers):
-    final_response = ""
-    current_response = ""
-    image_urls = []    
+def get_tool_info(tool_name, tool_content):
+    tool_references = []    
+    urls = []
+    content = ""
 
-    global status_msg
+    # tavily
+    if isinstance(tool_content, str) and "Title:" in tool_content and "URL:" in tool_content and "Content:" in tool_content:
+        logger.info("Tavily parsing...")
+        items = tool_content.split("\n\n")
+        for i, item in enumerate(items):
+            # logger.info(f"item[{i}]: {item}")
+            if "Title:" in item and "URL:" in item and "Content:" in item:
+                try:
+                    title_part = item.split("Title:")[1].split("URL:")[0].strip()
+                    url_part = item.split("URL:")[1].split("Content:")[0].strip()
+                    content_part = item.split("Content:")[1].strip().replace("\n", "")
+                    
+                    logger.info(f"title_part: {title_part}")
+                    logger.info(f"url_part: {url_part}")
+                    logger.info(f"content_part: {content_part}")
+
+                    content += f"{content_part}\n\n"
+                    
+                    tool_references.append({
+                        "url": url_part,
+                        "title": title_part,
+                        "content": content_part[:100] + "..." if len(content_part) > 100 else content_part
+                    })
+                except Exception as e:
+                    logger.info(f"Parsing error: {str(e)}")
+                    continue                
+
+    # OpenSearch
+    elif tool_name == "SearchIndexTool": 
+        if ":" in tool_content:
+            extracted_json_data = tool_content.split(":", 1)[1].strip()
+            try:
+                json_data = json.loads(extracted_json_data)
+                # logger.info(f"extracted_json_data: {extracted_json_data[:200]}")
+            except json.JSONDecodeError:
+                logger.info("JSON parsing error")
+                json_data = {}
+        else:
+            json_data = {}
+        
+        if "hits" in json_data:
+            hits = json_data["hits"]["hits"]
+            if hits:
+                logger.info(f"hits[0]: {hits[0]}")
+
+            for hit in hits:
+                text = hit["_source"]["text"]
+                metadata = hit["_source"]["metadata"]
+                
+                content += f"{text}\n\n"
+
+                filename = metadata["name"].split("/")[-1]
+                # logger.info(f"filename: {filename}")
+                
+                content_part = text.replace("\n", "")
+                tool_references.append({
+                    "url": metadata["url"], 
+                    "title": filename,
+                    "content": content_part[:100] + "..." if len(content_part) > 100 else content_part
+                })
+                
+        logger.info(f"content: {content}")
+        
+    # Knowledge Base
+    elif tool_name == "QueryKnowledgeBases": 
+        try:
+            # Handle case where tool_content contains multiple JSON objects
+            if tool_content.strip().startswith('{'):
+                # Parse each JSON object individually
+                json_objects = []
+                current_pos = 0
+                brace_count = 0
+                start_pos = -1
+                
+                for i, char in enumerate(tool_content):
+                    if char == '{':
+                        if brace_count == 0:
+                            start_pos = i
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0 and start_pos != -1:
+                            try:
+                                json_obj = json.loads(tool_content[start_pos:i+1])
+                                # logger.info(f"json_obj: {json_obj}")
+                                json_objects.append(json_obj)
+                            except json.JSONDecodeError:
+                                logger.info(f"JSON parsing error: {tool_content[start_pos:i+1][:100]}")
+                            start_pos = -1
+                
+                json_data = json_objects
+            else:
+                # Try original method
+                json_data = json.loads(tool_content)                
+            # logger.info(f"json_data: {json_data}")
+
+            # Build content
+            if isinstance(json_data, list):
+                for item in json_data:
+                    if isinstance(item, dict) and "content" in item:
+                        content_text = item["content"].get("text", "")
+                        content += content_text + "\n\n"
+
+                        uri = "" 
+                        if "location" in item:
+                            if "s3Location" in item["location"]:
+                                uri = item["location"]["s3Location"]["uri"]
+                                # logger.info(f"uri (list): {uri}")
+                                ext = uri.split(".")[-1]
+
+                                # ext가 이미지라면 
+                                sharing_url = utils.sharing_url
+                                url = sharing_url + "/" + s3_prefix + "/" + uri.split("/")[-1]
+                                if ext in ["jpg", "jpeg", "png", "gif", "bmp", "tiff", "ico", "webp"]:
+                                    url = sharing_url + "/" + capture_prefix + "/" + uri.split("/")[-1]
+                                logger.info(f"url: {url}")
+                                
+                                tool_references.append({
+                                    "url": url, 
+                                    "title": uri.split("/")[-1],
+                                    "content": content_text[:100] + "..." if len(content_text) > 100 else content_text
+                                })          
+                
+        except json.JSONDecodeError as e:
+            logger.info(f"JSON parsing error: {e}")
+            json_data = {}
+            content = tool_content  # Use original content if parsing fails
+
+        logger.info(f"content: {content}")
+        logger.info(f"tool_references: {tool_references}")
+
+    # aws document
+    elif tool_name == "search_documentation":
+        try:
+            json_data = json.loads(tool_content)
+            for item in json_data:
+                logger.info(f"item: {item}")
+                
+                if isinstance(item, str):
+                    try:
+                        item = json.loads(item)
+                    except json.JSONDecodeError:
+                        logger.info(f"Failed to parse item as JSON: {item}")
+                        continue
+                
+                if isinstance(item, dict) and 'url' in item and 'title' in item:
+                    url = item['url']
+                    title = item['title']
+                    content_text = item['context'][:100] + "..." if len(item['context']) > 100 else item['context']
+                    tool_references.append({
+                        "url": url,
+                        "title": title,
+                        "content": content_text
+                    })
+                else:
+                    logger.info(f"Invalid item format: {item}")
+                    
+        except json.JSONDecodeError:
+            logger.info(f"JSON parsing error: {tool_content}")
+            pass
+
+        logger.info(f"content: {content}")
+        logger.info(f"tool_references: {tool_references}")
+            
+    # ArXiv
+    elif tool_name == "search_papers" and "papers" in tool_content:
+        try:
+            json_data = json.loads(tool_content)
+
+            papers = json_data['papers']
+            for paper in papers:
+                url = paper['url']
+                title = paper['title']
+                abstract = paper['abstract'].replace("\n", "")
+                content_text = abstract[:100] + "..." if len(abstract) > 100 else abstract
+                content += f"{content_text}\n\n"
+                logger.info(f"url: {url}, title: {title}, content: {content_text}")
+
+                tool_references.append({
+                    "url": url,
+                    "title": title,
+                    "content": content_text
+                })
+        except json.JSONDecodeError:
+            logger.info(f"JSON parsing error: {tool_content}")
+            pass
+
+        logger.info(f"content: {content}")
+        logger.info(f"tool_references: {tool_references}")
+
+    else:        
+        try:
+            if isinstance(tool_content, dict):
+                json_data = tool_content
+            elif isinstance(tool_content, list):
+                json_data = tool_content
+            else:
+                json_data = json.loads(tool_content)
+            
+            logger.info(f"json_data: {json_data}")
+            if isinstance(json_data, dict) and "path" in json_data:  # path
+                path = json_data["path"]
+                if isinstance(path, list):
+                    for url in path:
+                        urls.append(url)
+                else:
+                    urls.append(path)            
+
+            for item in json_data:
+                logger.info(f"item: {item}")
+                if "reference" in item and "contents" in item:
+                    url = item["reference"]["url"]
+                    title = item["reference"]["title"]
+                    content_text = item["contents"][:100] + "..." if len(item["contents"]) > 100 else item["contents"]
+                    tool_references.append({
+                        "url": url,
+                        "title": title,
+                        "content": content_text
+                    })
+            logger.info(f"tool_references: {tool_references}")
+
+        except json.JSONDecodeError:
+            pass
+
+    return content, urls, tool_references
+
+async def run_agent(question, history_mode, containers):
+    global references, image_url
+
+    result = ""
+    current_response = ""
+    image_url = []    
+    references = []
+
+    global status_msg, initiated, update_required
     status_msg = []
 
     global agent
-    if not chat.is_initiated or chat.is_updated:
+    if not initiated or update_required:
         logger.info("create/update agent!")
         agent = create_agent(history_mode, containers)
-        chat.is_initiated = True
-        chat.is_updated = False
+        initiated = True
+        update_required = False
     else:
         if chat.debug_mode == 'Enable':
             containers['tool'].info(f"Tools: {tool_list}")
@@ -298,7 +590,7 @@ async def run_agent(question, history_mode, containers):
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"(start"))
 
-    with mcp_manager.get_active_clients(chat.mcp_tools) as _:
+    with mcp_manager.get_active_clients(mcp_tools) as _:
         agent_stream = agent.stream_async(question)
         
         tool_name = ""
@@ -314,7 +606,7 @@ async def run_agent(question, history_mode, containers):
                         if chat.debug_mode == 'Enable':
                             add_response(containers, content["text"])
 
-                        final_response = content["text"]
+                        result = content["text"]
                         current_response = ""
 
                     if "toolUse" in content:
@@ -331,12 +623,14 @@ async def run_agent(question, history_mode, containers):
                 
                     if "toolResult" in content:
                         tool_result = content["toolResult"]
+                        logger.info(f"tool_name: {tool_name}")
                         logger.info(f"tool_result: {tool_result}")
                         if "content" in tool_result:
                             tool_content = tool_result["content"]
                             for content in tool_content:
-                                if "text" in content and chat.debug_mode == 'Enable':
-                                    add_notification(containers, f"tool result: {content["text"]}")
+                                if "text" in content:
+                                    if chat.debug_mode == 'Enable':
+                                        add_notification(containers, f"tool result: {content["text"]}")
 
                                     try:
                                         json_data = json.loads(content["text"])
@@ -345,10 +639,28 @@ async def run_agent(question, history_mode, containers):
                                             logger.info(f"paths: {paths}")
                                             for path in paths:
                                                 if path.startswith("http"):
-                                                    image_urls.append(path)
+                                                    image_url.append(path)
                                                     logger.info(f"Added image URL: {path}")
                                     except json.JSONDecodeError:
                                         pass
+
+                                    content, urls, refs = get_tool_info(tool_name, content["text"])
+                                    logger.info(f"content: {content}")
+                                    logger.info(f"urls: {urls}")
+                                    logger.info(f"refs: {refs}")
+
+                                    if refs:
+                                        for r in refs:
+                                            references.append(r)
+                                        logger.info(f"refs: {refs}")
+                                    if urls:
+                                        for url in urls:
+                                            image_url.append(url)
+                                        logger.info(f"urls: {urls}")
+
+                                        if chat.debug_mode == "Enable":
+                                            add_notification(containers, f"Added path to image_url: {urls}")
+                                            response_msg.append(f"Added path to image_url: {urls}")
                                         
             if "event_loop_metrics" in event and \
                 hasattr(event["event_loop_metrics"], "tool_metrics") and \
@@ -358,8 +670,8 @@ async def run_agent(question, history_mode, containers):
                     fname = tool_info["input"]["filename"]
                     if fname:
                         url = f"{path}/{chat.s3_image_prefix}/{parse.quote(fname)}.png"
-                        if url not in image_urls:
-                            image_urls.append(url)
+                        if url not in image_url:
+                            image_url.append(url)
                             logger.info(f"Added image URL: {url}")
 
             if "data" in event:
@@ -373,5 +685,15 @@ async def run_agent(question, history_mode, containers):
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"end)"))
 
-    return final_response, image_urls
+    ref = ""
+    if references:
+        ref = "\n\n### Reference\n"
+        for i, reference in enumerate(references):
+            ref += f"{i+1}. [{reference['title']}]({reference['url']}), {reference['content']}...\n"    
+
+        # show reference
+        if chat.debug_mode == 'Enable':
+            containers['notification'][index-1].markdown(result+ref)
+
+    return result+ref, image_url
             

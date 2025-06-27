@@ -259,7 +259,7 @@ def ask_cost_insights(question):
     prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
     # logger.info('prompt: ', prompt)    
 
-    llm = chat.get_chat()
+    llm = chat.get_chat(extended_thinking="Disable")
     chain = prompt | llm
 
     raw_cost = json.dumps(cost_data_dict)

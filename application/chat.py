@@ -3,21 +3,16 @@ import info
 import boto3
 import traceback
 import uuid
-import json
 import logging
 import sys
 import strands_agent as agent
 import re
 import PyPDF2
-
 from botocore.config import Config
-from langchain_community.utilities.tavily_search import TavilySearchAPIWrapper
 
 from urllib import parse
 from langchain_aws import ChatBedrock
 from langchain_core.prompts import ChatPromptTemplate
-from tavily import TavilyClient  
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from io import BytesIO
 from langchain.docstore.document import Document
@@ -55,72 +50,8 @@ models = info.get_model_info(model_name)
 bedrock_region = "us-west-2"
 reasoning_mode = 'Disable'
 
-# api key to get weather information in agent
-secretsmanager = boto3.client(
-    service_name='secretsmanager',
-    region_name=bedrock_region
-)
-
-# api key for weather
-weather_api_key = ""
-try:
-    get_weather_api_secret = secretsmanager.get_secret_value(
-        SecretId=f"openweathermap-{projectName}"
-    )
-    #print('get_weather_api_secret: ', get_weather_api_secret)
-    secret = json.loads(get_weather_api_secret['SecretString'])
-    #print('secret: ', secret)
-    weather_api_key = secret['weather_api_key']
-
-except Exception as e:
-    raise e
-
-# api key to use Tavily Search
-tavily_key = tavily_api_wrapper = ""
-try:
-    get_tavily_api_secret = secretsmanager.get_secret_value(
-        SecretId=f"tavilyapikey-{projectName}"
-    )
-    #print('get_tavily_api_secret: ', get_tavily_api_secret)
-    secret = json.loads(get_tavily_api_secret['SecretString'])
-    #print('secret: ', secret)
-
-    if "tavily_api_key" in secret:
-        tavily_key = secret['tavily_api_key']
-        #print('tavily_api_key: ', tavily_api_key)
-
-        if tavily_key:
-            tavily_api_wrapper = TavilySearchAPIWrapper(tavily_api_key=tavily_key)
-            #     os.environ["TAVILY_API_KEY"] = tavily_key
-
-        else:
-            logger.info(f"tavily_key is required.")
-except Exception as e: 
-    logger.info(f"Tavily credential is required: {e}")
-    raise e
-
-# api key to use firecrawl Search
-firecrawl_key = ""
-try:
-    get_firecrawl_secret = secretsmanager.get_secret_value(
-        SecretId=f"firecrawlapikey-{projectName}"
-    )
-    secret = json.loads(get_firecrawl_secret['SecretString'])
-
-    if "firecrawl_api_key" in secret:
-        firecrawl_key = secret['firecrawl_api_key']
-        # print('firecrawl_api_key: ', firecrawl_key)
-except Exception as e: 
-    logger.info(f"Firecrawl credential is required: {e}")
-    raise e
-
-is_updated = False
-is_initiated = False
-strands_tools = []
-mcp_tools = []
-
-def update(modelName, reasoningMode, debugMode, selected_strands_tools, selected_mcp_tools):    
-    global model_name, model_id, model_type, reasoning_mode, debug_mode, strands_tools, mcp_tools, is_updated
+def update(modelName, reasoningMode, debugMode):    
+    global model_name, model_id, model_type, reasoning_mode, debug_mode
     
     if model_name != modelName:
         model_name = modelName
@@ -135,20 +66,8 @@ def update(modelName, reasoningMode, debugMode, selected_strands_tools, selected
 
     if debugMode != debug_mode:
         debug_mode = debugMode
-        logger.info(f"debug_mode: {debug_mode}")
+        logger.info(f"debug_mode: {debug_mode}")        
     
-    if selected_strands_tools != strands_tools:
-        strands_tools = selected_strands_tools
-        is_updated = True
-
-    if selected_mcp_tools != mcp_tools:
-        mcp_tools = selected_mcp_tools
-        is_updated = True
-        agent.init_mcp_clients()
-
-    logger.info(f"strands_tools: {strands_tools}")
-    logger.info(f"mcp_tools: {mcp_tools}")
-
 def traslation(chat, text, input_language, output_language):
     system = (
         "You are a helpful assistant that translates {input_language} to {output_language} in <article> tags." 

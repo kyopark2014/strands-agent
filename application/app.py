@@ -115,7 +115,8 @@ with st.sidebar:
         # print('fileId: ', chat.fileId)
         uploaded_file = st.file_uploader("RAG를 위한 파일을 선택합니다.", type=["pdf", "txt", "py", "md", "csv", "json"], key=chat.fileId)
 
-    chat.update(modelName, reasoningMode, debugMode, selected_strands_tools, selected_mcp_tools)
+    chat.update(modelName, reasoningMode, debugMode)
+    agent.update(selected_strands_tools, selected_mcp_tools)
     
     st.success(f"Connected to {modelName}", icon="💚")
     clear_button = st.button("대화 초기화", key="clear")
@@ -223,7 +224,8 @@ if prompt := st.chat_input("메시지를 입력하세요."):
         
         response, image_urls = asyncio.run(agent.run_agent(prompt, history_mode, containers))
 
-        #st.markdown(response)
+        if chat.debug_mode == 'Disable':
+           st.markdown(response)
         
         for url in image_urls:
             logger.info(f"url: {url}")

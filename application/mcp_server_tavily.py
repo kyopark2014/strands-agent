@@ -7,7 +7,7 @@ from tavily import TavilyClient, InvalidAPIKeyError, UsageLimitExceededError
 import json
 import os
 from dotenv import load_dotenv
-import chat
+import utils
 
 # Configure logging
 logging.basicConfig(
@@ -23,7 +23,7 @@ logger = logging.getLogger("tavily_mcp")
 load_dotenv()
 
 #api_key = os.getenv("TAVILY_API_KEY")
-api_key = chat.tavily_key
+api_key = utils.tavily_key
 if not api_key:
     err_msg = "TAVILY_API_KEY environment variable is required"
     logger.error(f"{err_msg}")

@@ -197,7 +197,7 @@ def load_config(mcp_type):
                     "command": "npx",
                     "args": ["-y", "firecrawl-mcp"],
                     "env": {
-                        "FIRECRAWL_API_KEY": chat.firecrawl_key
+                        "FIRECRAWL_API_KEY": utils.firecrawl_key
                     }
                 }
             }
@@ -239,18 +239,18 @@ def load_config(mcp_type):
             }
         }    
     
-    elif mcp_type == "tavily":
-        return {
-            "mcpServers": {
-                "tavily-mcp": {
-                    "command": "npx",
-                    "args": ["-y", "tavily-mcp@0.1.4"],
-                    "env": {
-                        "TAVILY_API_KEY": chat.tavily_key
-                    },
-                }
-            }
-        }
+    # elif mcp_type == "tavily":
+    #     return {
+    #         "mcpServers": {
+    #             "tavily-mcp": {
+    #                 "command": "npx",
+    #                 "args": ["-y", "tavily-mcp@0.1.4"],
+    #                 "env": {
+    #                     "TAVILY_API_KEY": utils.tavily_key
+    #                 },
+    #             }
+    #         }
+    #     }
     
     elif mcp_type == "wikipedia":
         return {
@@ -428,32 +428,6 @@ def load_config(mcp_type):
     elif mcp_type == "사용자 설정":
         return mcp_user_config
 
-def load_config_by_name(name):
-    if name == "image generation":
-        config = load_config('image_generation')
-    elif name == "aws diagram":
-        config = load_config('aws_diagram')
-    elif name == "aws document":
-        config = load_config('aws_documentation')
-    elif name == "aws cost":
-        config = load_config('aws_cost')
-    elif name == "ArXiv":
-        config = load_config('arxiv')
-    elif name == "aws cloudwatch":
-        config = load_config('aws_cloudwatch')
-    elif name == "aws storage":
-        config = load_config('aws_storage')
-    elif name == "code interpreter":
-        config = load_config('code_interpreter')
-    elif name == "aws cli":
-        config = load_config('aws_cli')
-    elif name == "text editor":
-        config = load_config('text_editor')
-    else:
-        config = load_config(name)
-    # logger.info(f"config: {config}")
-    return config
-
 def load_selected_config(mcp_selections: dict[str, bool]):
     #logger.info(f"mcp_selections: {mcp_selections}")
     loaded_config = {}
@@ -479,7 +453,7 @@ def load_selected_config(mcp_selections: dict[str, bool]):
         elif server == "aws storage":
             config = load_config('aws_storage')
         elif server == "knowledge base":
-            config = load_config('aws_rag')
+            config = load_config('knowledge_base_lambda')
         elif server == "code interpreter":
             config = load_config('code_interpreter')
         elif server == "aws cli":
