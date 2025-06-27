@@ -6,6 +6,8 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as opensearchserverless from 'aws-cdk-lib/aws-opensearchserverless';
 import * as cloudFront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as path from "path";
 
 const projectName = `strands-agent`; 
 const region = process.env.CDK_DEFAULT_REGION;    
@@ -42,8 +44,23 @@ export class CdkStrandsAgentStack extends cdk.Stack {
       description: 'The nmae of bucket',
     });
 
+    // cloudfront for sharing s3
+    const distribution_sharing = new cloudFront.Distribution(this, `sharing-for-${projectName}`, {
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessControl(s3Bucket),
+        allowedMethods: cloudFront.AllowedMethods.ALLOW_ALL,
+        cachePolicy: cloudFront.CachePolicy.CACHING_DISABLED,
+        viewerProtocolPolicy: cloudFront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      },
+      priceClass: cloudFront.PriceClass.PRICE_CLASS_200,  
+    });
+    new cdk.CfnOutput(this, `distribution-sharing-DomainName-for-${projectName}`, {
+      value: 'https://'+distribution_sharing.domainName,
+      description: 'The domain name of the Distribution Sharing',
+    });   
+
     // Knowledge Base Role
-    const knowledge_base_role = new iam.Role(this,  `role-knowledge-base-for-${projectName}`, {
+    const roleKnowledgeBase = new iam.Role(this,  `role-knowledge-base-for-${projectName}`, {
       roleName: `role-knowledge-base-for-${projectName}-${region}`,
       assumedBy: new iam.CompositePrincipal(
         new iam.ServicePrincipal("bedrock.amazonaws.com")
@@ -55,18 +72,28 @@ export class CdkStrandsAgentStack extends cdk.Stack {
       resources: [`*`],
       actions: ["bedrock:*"],
     });        
-    knowledge_base_role.attachInlinePolicy( 
+    roleKnowledgeBase.attachInlinePolicy( 
       new iam.Policy(this, `bedrock-invoke-policy-for-${projectName}`, {
         statements: [bedrockInvokePolicy],
       }),
     );  
     
+    const S3Policy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      resources: ['*'],
+      actions: ["s3:*"],
+    });
+    roleKnowledgeBase.attachInlinePolicy( 
+      new iam.Policy(this, `s3-policy-knowledge-base-for-${projectName}`, {
+        statements: [S3Policy],
+      }),
+    );     
     const bedrockKnowledgeBaseS3Policy = new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       resources: ['*'],
       actions: ["s3:*"],
     });
-    knowledge_base_role.attachInlinePolicy( 
+    roleKnowledgeBase.attachInlinePolicy( 
       new iam.Policy(this, `knowledge-base-s3-policy-for-${projectName}`, {
         statements: [bedrockKnowledgeBaseS3Policy],
       }),
@@ -76,11 +103,59 @@ export class CdkStrandsAgentStack extends cdk.Stack {
       resources: ['*'],
       actions: ["aoss:APIAccessAll"],
     });
-    knowledge_base_role.attachInlinePolicy( 
+    roleKnowledgeBase.attachInlinePolicy( 
       new iam.Policy(this, `bedrock-agent-opensearch-policy-for-${projectName}`, {
         statements: [knowledgeBaseOpenSearchPolicy],
       }),
     );  
+
+    // lambda Knowledge Base
+    const roleLambdaKnowledgeBase = new iam.Role(this, `role-lambda-knowledge-base-for-${projectName}`, {
+      roleName: `role-lambda-knowledge-base-for-${projectName}-${region}`,
+      assumedBy: new iam.CompositePrincipal(
+        new iam.ServicePrincipal("lambda.amazonaws.com"),
+        new iam.ServicePrincipal("bedrock.amazonaws.com"),
+      ),
+    });
+    const CreateLogPolicy = new iam.PolicyStatement({  
+      resources: [`arn:aws:logs:${region}:${accountId}:*`],
+      actions: ['logs:CreateLogGroup'],
+    });        
+    roleLambdaKnowledgeBase.attachInlinePolicy( 
+      new iam.Policy(this, `log-policy-lambda-knowledge-base-for-${projectName}`, {
+        statements: [CreateLogPolicy],
+      }),
+    );
+    const CreateLogStreamPolicy = new iam.PolicyStatement({  
+      resources: [`arn:aws:logs:${region}:${accountId}:log-group:/aws/lambda/*`],
+      actions: ["logs:CreateLogStream","logs:PutLogEvents"],
+    });        
+    roleLambdaKnowledgeBase.attachInlinePolicy( 
+      new iam.Policy(this, `stream-log-policy-lambda-knowledge-base-for-${projectName}`, {
+        statements: [CreateLogStreamPolicy],
+      }),
+    );
+
+    const knowledgeBaseBedrockPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      resources: ['*'],
+      actions: ["bedrock:*"],
+    });
+    roleKnowledgeBase.attachInlinePolicy( 
+      new iam.Policy(this, `bedrock-policy-knowledge-base-for-${projectName}`, {
+        statements: [knowledgeBaseBedrockPolicy],
+      }),
+    );  
+    roleLambdaKnowledgeBase.attachInlinePolicy( 
+      new iam.Policy(this, `bedrock-policy-lambda-knowledge-base-for-${projectName}`, {
+        statements: [knowledgeBaseBedrockPolicy],
+      }),
+    );  
+    roleLambdaKnowledgeBase.attachInlinePolicy( 
+      new iam.Policy(this, `s3-policy-lambda-knowledge-base-for-${projectName}`, {
+        statements: [S3Policy],
+      }),
+    );
 
     // OpenSearch Serverless
     const collectionName = vectorIndexName
@@ -213,26 +288,63 @@ export class CdkStrandsAgentStack extends cdk.Stack {
       },
     });
 
-    // cloudfront for sharing s3
-    const distribution_sharing = new cloudFront.Distribution(this, `sharing-for-${projectName}`, {
-      defaultBehavior: {
-        origin: origins.S3BucketOrigin.withOriginAccessControl(s3Bucket),
-        allowedMethods: cloudFront.AllowedMethods.ALLOW_ALL,
-        cachePolicy: cloudFront.CachePolicy.CACHING_DISABLED,
-        viewerProtocolPolicy: cloudFront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-      },
-      priceClass: cloudFront.PriceClass.PRICE_CLASS_200,  
+    // lambda-rag
+    const roleLambdaRag = new iam.Role(this, `role-lambda-rag-for-${projectName}`, {
+      roleName: `role-lambda-rag-for-${projectName}-${region}`,
+      assumedBy: new iam.CompositePrincipal(
+        new iam.ServicePrincipal("lambda.amazonaws.com"),
+        new iam.ServicePrincipal("bedrock.amazonaws.com"),
+      ),
+      // managedPolicies: [cdk.aws_iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchLogsFullAccess')] 
     });
-    new cdk.CfnOutput(this, `distribution-sharing-DomainName-for-${projectName}`, {
-      value: 'https://'+distribution_sharing.domainName,
-      description: 'The domain name of the Distribution Sharing',
-    });   
+    roleLambdaRag.attachInlinePolicy( 
+      new iam.Policy(this, `create-log-policy-lambda-rag-for-${projectName}`, {
+        statements: [CreateLogPolicy],
+      }),
+    );
+    roleLambdaRag.attachInlinePolicy( 
+      new iam.Policy(this, `create-stream-log-policy-lambda-rag-for-${projectName}`, {
+        statements: [CreateLogStreamPolicy],
+      }),
+    );      
 
+    // bedrock
+    roleLambdaRag.attachInlinePolicy( 
+      new iam.Policy(this, `tool-bedrock-invoke-policy-for-${projectName}`, {
+        statements: [bedrockInvokePolicy],
+      }),
+    );  
+    roleLambdaRag.attachInlinePolicy( 
+      new iam.Policy(this, `tool-bedrock-agent-opensearch-policy-for-${projectName}`, {
+        statements: [knowledgeBaseOpenSearchPolicy],
+      }),
+    );  
+    roleLambdaRag.attachInlinePolicy( 
+      new iam.Policy(this, `tool-bedrock-agent-bedrock-policy-for-${projectName}`, {
+        statements: [knowledgeBaseBedrockPolicy],
+      }),
+    );  
+    
+    const lambdaKnowledgeBase = new lambda.DockerImageFunction(this, `knowledge-base-for-${projectName}`, {
+      description: 'RAG based on Knoeledge Base',
+      functionName: `knowledge-base-for-${projectName}`,
+      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../lambda-knowledge-base')),
+      timeout: cdk.Duration.seconds(120),
+      memorySize: 4096,
+      role: roleLambdaRag,
+      environment: {
+        bedrock_region: String(region),  
+        projectName: projectName,
+        "sharing_url": 'https://'+distribution_sharing.domainName,
+      }
+    });
+    lambdaKnowledgeBase.grantInvoke(new cdk.aws_iam.ServicePrincipal("bedrock.amazonaws.com"));     
+    
     const environment = {
       "projectName": projectName,
       "accountId": accountId,
       "region": region,
-      "knowledge_base_role": knowledge_base_role.roleArn,
+      "knowledge_base_role": roleKnowledgeBase.roleArn,
       "collectionArn": collectionArn,
       "opensearch_url": OpenSearchCollection.attrCollectionEndpoint,
       "s3_bucket": s3Bucket.bucketName,      

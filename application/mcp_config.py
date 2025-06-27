@@ -190,6 +190,31 @@ def load_config(mcp_type):
             }
         }
     
+    elif mcp_type == "firecrawl":
+        return {
+            "mcpServers": {
+                "firecrawl-mcp": {
+                    "command": "npx",
+                    "args": ["-y", "firecrawl-mcp"],
+                    "env": {
+                        "FIRECRAWL_API_KEY": chat.firecrawl_key
+                    }
+                }
+            }
+        }
+    
+    elif mcp_type == "knowledge_base_lambda":
+        return {
+            "mcpServers": {
+                "knowledge_base_lambda": {
+                    "command": "python",
+                    "args": [
+                        "application/mcp_server_lambda_knowledge_base.py"
+                    ]
+                }
+            }
+        }    
+    
     elif mcp_type == "code_interpreter":
         return {
             "mcpServers": {
@@ -376,22 +401,6 @@ def load_config(mcp_type):
                     "command": "python",
                     "args": [
                         "application/mcp_server_use_aws.py"
-                    ],
-                    "env": {
-                        "AWS_REGION": aws_region,
-                        "FASTMCP_LOG_LEVEL": "ERROR"
-                    }
-                }
-            }
-        }
-    
-    elif mcp_type == "aws_cloudwatch_logs":  # AWS Labs cloudwatch-logs MCP Server
-        return {
-            "mcpServers": {
-                "awslabs.cloudwatch-logs-mcp-server": {
-                    "command": "uvx",
-                    "args": [
-                        "awslabs.cloudwatch-logs-mcp-server@latest"
                     ],
                     "env": {
                         "AWS_REGION": aws_region,

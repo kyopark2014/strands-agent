@@ -33,12 +33,10 @@ available_strands_tools = ["calculator", "current_time"]
 available_mcp_tools = [
     "basic", "code interpreter", "aws document", "aws cost", "aws cli", 
     "use_aws", "aws cloudwatch", "aws storage", "image generation", "aws diagram",
-    "aws_cloudwatch_logs", "aws_knowledge_base",
-    "perplexity", "ArXiv", "wikipedia", "tavily-manual",
+    "knowledge base", "tavily", "perplexity", "ArXiv", "wikipedia", 
     "filesystem", "terminal", "text editor", "context7", "puppeteer", 
-    "playwright", "obsidian", "airbnb", 
-    "pubmed", "chembl", "clinicaltrial", "arxiv-manual",
-    "사용자 설정"
+    "playwright", "firecrawl", "obsidian", "airbnb", 
+    "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "tavily-manual", "사용자 설정"
 ]
 
 index = 0
@@ -283,6 +281,9 @@ async def run_agent(question, history_mode, containers):
     final_response = ""
     current_response = ""
     image_urls = []    
+
+    global status_msg
+    status_msg = []
 
     global agent
     if not chat.is_initiated or chat.is_updated:
