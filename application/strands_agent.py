@@ -323,7 +323,7 @@ def create_agent(history_mode, containers):
         logger.info(f"Tools: {tool_list}")
 
         if chat.debug_mode == 'Enable':
-            containers['tool'].info(f"Tools: {tool_list}")
+            containers['tools'].info(f"Tools: {tool_list}")
 
     except Exception as e:
         logger.error(f"Error initializing MCP clients: {e}")
@@ -585,7 +585,7 @@ async def run_agent(question, history_mode, containers):
         update_required = False
     else:
         if chat.debug_mode == 'Enable':
-            containers['tool'].info(f"Tools: {tool_list}")
+            containers['tools'].info(f"Tools: {tool_list}")
     
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"(start"))

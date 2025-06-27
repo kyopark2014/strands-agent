@@ -7,7 +7,7 @@ import asyncio
 import logging
 import sys
 import knowledge_base as kb
-import strands_agent as agent
+import strands_agent
 
 from langchain.docstore.document import Document
 
@@ -51,8 +51,8 @@ with st.sidebar:
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)
 
-    strands_tools = agent.available_strands_tools # available tool of strands agent
-    mcp_tools = agent.available_mcp_tools # available tool of mcp    
+    strands_tools = strands_agent.available_strands_tools # available tool of strands agent
+    mcp_tools = strands_agent.available_mcp_tools # available tool of mcp    
     mcp_options = strands_tools + mcp_tools
     
     mcp_selections = {}
@@ -116,7 +116,7 @@ with st.sidebar:
         uploaded_file = st.file_uploader("RAG를 위한 파일을 선택합니다.", type=["pdf", "txt", "py", "md", "csv", "json"], key=chat.fileId)
 
     chat.update(modelName, reasoningMode, debugMode)
-    agent.update(selected_strands_tools, selected_mcp_tools)
+    strands_agent.update(selected_strands_tools, selected_mcp_tools)
     
     st.success(f"Connected to {modelName}", icon="💚")
     clear_button = st.button("대화 초기화", key="clear")
@@ -216,7 +216,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             history_mode = "Enable"
 
         containers = {
-            "tool": st.empty(),
+            "tools": st.empty(),
             "status": st.empty(),
             "notification": [st.empty() for _ in range(100)],
             "key": st.empty()

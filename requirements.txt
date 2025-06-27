@@ -1,5 +1,9 @@
-strands-agents
-strands-agents-tools
+strands-agents>=0.1.9
+strands-agents-tools>=0.1.7
+strands-agents-builder
+strands-agents-examples
+strands-agents-samples
+strands-agent-mcp
 mcp
 boto3
 langchain_aws
