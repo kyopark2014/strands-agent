@@ -27,7 +27,6 @@ config = load_config()
 
 bedrock_region = config['region']
 projectName = config['projectName']
-sharing_url = config['sharing_url']
 
 def get_contents_type(file_name):
     if file_name.lower().endswith((".jpg", ".jpeg")):
