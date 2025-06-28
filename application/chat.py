@@ -5,7 +5,6 @@ import traceback
 import uuid
 import logging
 import sys
-import strands_agent as agent
 import re
 import PyPDF2
 from botocore.config import Config

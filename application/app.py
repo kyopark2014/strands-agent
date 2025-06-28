@@ -51,8 +51,16 @@ with st.sidebar:
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)
 
-    strands_tools = strands_agent.available_strands_tools # available tool of strands agent
-    mcp_tools = strands_agent.available_mcp_tools # available tool of mcp    
+    strands_tools = ["calculator", "current_time"]
+    mcp_tools = [
+        "basic", "code interpreter", "aws document", "aws cost", "aws cli", 
+        "use_aws", "aws cloudwatch", "aws storage", "image generation", "aws diagram",
+        "knowledge base", "perplexity", "ArXiv", "wikipedia", 
+        "filesystem", "terminal", "text editor", "context7", "puppeteer", 
+        "playwright", "firecrawl", "obsidian", "airbnb", 
+        "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "tavily-manual", "사용자 설정"
+    ]
+
     mcp_options = strands_tools + mcp_tools
     
     mcp_selections = {}
@@ -222,7 +230,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             "key": st.empty()
         }
         
-        response, image_urls = asyncio.run(agent.run_agent(prompt, history_mode, containers))
+        response, image_urls = asyncio.run(strands_agent.run_agent(prompt, history_mode, containers))
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)
