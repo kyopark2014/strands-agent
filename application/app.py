@@ -87,10 +87,6 @@ with st.sidebar:
                 default_value = option in default_selections
                 mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
 
-    # Get selected strands_tools from mcp_selections
-    selected_strands_tools = [tool for tool in strands_tools if mcp_selections.get(tool, False)]
-    selected_mcp_tools = [tool for tool in mcp_tools if mcp_selections.get(tool, False)]
-
     if mcp_selections["사용자 설정"]:
         mcp_info = st.text_area(
             "MCP 설정을 JSON 형식으로 입력하세요",
@@ -122,10 +118,9 @@ with st.sidebar:
         st.subheader("📋 문서 업로드")
         # print('fileId: ', chat.fileId)
         uploaded_file = st.file_uploader("RAG를 위한 파일을 선택합니다.", type=["pdf", "txt", "py", "md", "csv", "json"], key=chat.fileId)
-
-    chat.update(modelName, reasoningMode, debugMode)
-    strands_agent.update(selected_strands_tools, selected_mcp_tools)
     
+    mcp_servers = [server for server, is_selected in mcp_selections.items() if is_selected]
+
     st.success(f"Connected to {modelName}", icon="💚")
     clear_button = st.button("대화 초기화", key="clear")
     # print('clear_button: ', clear_button)
@@ -230,7 +225,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             "key": st.empty()
         }
         
-        response, image_urls = asyncio.run(strands_agent.run_agent(prompt, history_mode, containers))
+        response, image_urls = asyncio.run(strands_agent.run_agent(prompt, strands_tools, mcp_servers, history_mode, containers))
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)
