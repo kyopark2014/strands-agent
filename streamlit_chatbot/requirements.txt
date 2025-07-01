@@ -8,3 +8,16 @@ mcp
 requests
 opensearch-py
 aioboto3
+beautifulsoup4
+PyPDF2
+pytz
+matplotlib
+tavily-python
+wikipedia
+kaleido
+pandas
+plotly_express
+diagrams
+graphviz
+
+
