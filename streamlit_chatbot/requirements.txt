@@ -19,5 +19,7 @@ pandas
 plotly_express
 diagrams
 graphviz
-
+arxiv
+chembl-webresource-client
+pytrials
 
