@@ -7,6 +7,7 @@ import logging
 import sys
 import re
 import PyPDF2
+import csv
 from botocore.config import Config
 
 from urllib import parse
@@ -247,6 +248,15 @@ fileId = uuid.uuid4().hex
 def get_summary_of_uploaded_file(file_name, st):
     file_type = file_name[file_name.rfind('.')+1:len(file_name)]            
     logger.info(f"file_type: {file_type}")
+
+    if file_type == 'csv':
+        docs = load_csv_document(file_name)
+        contexts = []
+        for doc in docs:
+            contexts.append(doc.page_content)
+        logger.info(f"contexts: {contexts}")
+    
+        msg = get_summary(contexts)
     
     if file_type == 'pdf' or file_type == 'txt' or file_type == 'md' or file_type == 'pptx' or file_type == 'docx':
         texts = load_document(file_type, file_name)
@@ -281,6 +291,43 @@ def get_summary_of_uploaded_file(file_name, st):
     # print('fileId: ', fileId)
 
     return msg
+
+# load csv documents from s3
+def load_csv_document(s3_file_name):
+    s3r = boto3.resource(
+        service_name='s3',
+        region_name=bedrock_region
+    )
+    doc = s3r.Object(s3_bucket, s3_prefix+'/'+s3_file_name)
+
+    lines = doc.get()['Body'].read().decode('utf-8').split('\n')   # read csv per line
+    logger.info(f"lins: {len(lines)}")
+        
+    columns = lines[0].split(',')  # get columns
+    #columns = ["Category", "Information"]  
+    #columns_to_metadata = ["type","Source"]
+    logger.info(f"columns: {columns}")
+    
+    docs = []
+    n = 0
+    for row in csv.DictReader(lines, delimiter=',',quotechar='"'):
+        # print('row: ', row)
+        #to_metadata = {col: row[col] for col in columns_to_metadata if col in row}
+        values = {k: row[k] for k in columns if k in row}
+        content = "\n".join(f"{k.strip()}: {v.strip()}" for k, v in values.items())
+        doc = Document(
+            page_content=content,
+            metadata={
+                'name': s3_file_name,
+                'row': n+1,
+            }
+            #metadata=to_metadata
+        )
+        docs.append(doc)
+        n = n+1
+    logger.info(f"docs[0]: {docs[0]}")
+
+    return docs
 
 config = utils.load_config()
 print(f"config: {config}")
