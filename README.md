@@ -336,51 +336,54 @@ with mcp_manager.get_active_clients(mcp_tools) as _:
 
 ### Streamlit에 맞게 출력문 조정하기
 
-상기와 같이 agent 실행시에 event stream에서 message의 text를 사용하면 진행과정을 보여줄 수 없습니다. 결과를 얻기까지의 과정을 보여주면 사용자의 신뢰도를 높이고, 추가 질문을 통해 더 나은 결과를 얻을 수 있습니다. 따라서 아래와 같이 current_response는 event의 data로 전달되는 스트림 형태의 결과물을 모아서 보여줍니다. 또한 message의 data로 개행 여부를 파악하여 처리합니다. 또한 사용된 tool의 이름과 입력값을 toolUse로 부터 추출하고, streamlit에서 status_container로 보여줍니다. 또한 tool의 실행 결과는 toolResult로 부터 추출합니다. Agent의 실행 결과는 text 또는 파일로 구성됩니다. 파일일 경우에는 tool의 동작에 따라 포맷이 상이합니다. 여기에서는 event_loop_metrics를 이용해 generate_image_with_colors라는 tool이 생성한 이미지 파일을 image_urls로 추출할 수 있었습니다.
+Agent를 아래와 같이 실행하여 agent_stream을 얻습니다.
 
 ```python
-    with mcp_manager.get_active_clients(mcp_tools) as _:
-        agent_stream = agent.stream_async(question)
-        
-        tool_name = ""
-        async for event in agent_stream:
-            if "message" in event:
-                message = event["message"]
-                for content in message["content"]:                
-                    if "text" in content:
-                        current_response += '\n\n'
-                        final_response = content["text"]
+with mcp_manager.get_active_clients(mcp_servers) as _:
+    agent_stream = agent.stream_async(question)
+```
 
-                    if "toolUse" in content:
-                        tool_use = content["toolUse"]                        
-                        tool_name = tool_use["name"]
-                        input = tool_use["input"]
-                        status_container.info(f"tool name: {tool_name}, arg:: {input}")
-                
-                    if "toolResult" in content:
-                        tool_result = content["toolResult"]
-                        if "content" in tool_result:
-                            tool_content = tool_result["content"]
-                            for content in tool_content:
-                                if "text" in content:
-                                    response_container.info(f"tool result: {content["text"]}")
+사용자 경험을 위해서는 stream형태로 출력을 얻을 수 있어야 합니다. 이는 아래와 같이 agent_stream에서 event를 꺼낸후 "data"에서 추출하여 아래와 같이 current_response에 stream 결과를 모아서 보여줍니다.
 
-            if "event_loop_metrics" in event and \
-                hasattr(event["event_loop_metrics"], "tool_metrics") and \
-                "generate_image_with_colors" in event["event_loop_metrics"].tool_metrics:
-                tool_info = event["event_loop_metrics"].tool_metrics["generate_image_with_colors"].tool
-                if "input" in tool_info and "filename" in tool_info["input"]:
-                    fname = tool_info["input"]["filename"]
-                    if fname:
-                        url = f"{path}/{s3_image_prefix}/{parse.quote(fname)}.png"
-                        if url not in image_urls:
-                            image_urls.append(url)
+```python
+async for event in agent_stream:
+    if "data" in event:
+        text_data = event["data"]
+        current_response += text_data
 
-            if "data" in event:
-                text_data = event["data"]
-                current_response += text_data
-                key_container.markdown(current_response)
-                continue
+        containers["notification"][index].markdown(current_response)
+```
+
+Strands agent는 multi step reasoning을 통해 여러번 결과가 나옵니다. 최종 결과를 얻기 위해 아래와 같이 message의 content에서 text를 추출하여 마지막만을 추출합니다. 또한 tool마다 reference가 다르므로 아래와 같이 tool content의 text에서 reference를 추출합니다.  
+
+```python
+if "message" in event:
+    message = event["message"]
+    for msg_content in message["content"]:                
+        result = msg_content["text"]
+        current_response = ""
+
+        tool_content = msg_content["toolResult"]["content"]
+        for content in tool_content:
+            content, urls, refs = get_tool_info(tool_name, content["text"])
+            if refs:
+                for r in refs:
+                    references.append(r)
+```
+
+generate_image_with_colors라는 tool의 최종 이미지 경로는 아래와 같이 event_loop_metrics에서 추출합하여 image_urls로 활용합니다.
+
+```python
+if "event_loop_metrics" in event and \
+    hasattr(event["event_loop_metrics"], "tool_metrics") and \
+    "generate_image_with_colors" in event["event_loop_metrics"].tool_metrics:
+    tool_info = event["event_loop_metrics"].tool_metrics["generate_image_with_colors"].tool
+    if "input" in tool_info and "filename" in tool_info["input"]:
+        fname = tool_info["input"]["filename"]
+        if fname:
+            url = f"{path}/{s3_image_prefix}/{parse.quote(fname)}.png"
+            if url not in image_urls:
+                image_urls.append(url)
 ```
 
 ## 설치하기
