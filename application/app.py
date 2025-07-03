@@ -109,9 +109,21 @@ with st.sidebar:
     debugMode = 'Enable' if select_debugMode else 'Disable'
     
     # extended thinking of claude 3.7 sonnet
-    select_reasoning = st.checkbox('Reasoning', value=False)
-    reasoningMode = 'Enable' if select_reasoning else 'Disable'
-    logger.info(f"reasoningMode: {reasoningMode}")
+    reasoningMode = 'Disable'
+    if modelName == 'Claude 3.7 Sonnet' or modelName == 'Claude 4 Sonnet' or modelName == 'Claude 4 Opus':
+        select_reasoning = st.checkbox('Reasoning', value=False)
+        reasoningMode = 'Enable' if select_reasoning else 'Disable'
+        logger.info(f"reasoningMode: {reasoningMode}")
+
+    # multi region check box
+    select_multiRegion = st.checkbox('Multi Region (RAG)', value=False)
+    multiRegion = 'Enable' if select_multiRegion else 'Disable'
+    #print('multiRegion: ', multiRegion)
+
+    # RAG grading
+    select_grading = st.checkbox('Grading (RAG)', value=False)
+    gradingMode = 'Enable' if select_grading else 'Disable'
+    # logger.info(f"gradingMode: {gradingMode}")
 
     uploaded_file = None
     if mode=="Agent" or mode=="Agent (Chat)":
@@ -120,6 +132,8 @@ with st.sidebar:
         uploaded_file = st.file_uploader("RAG를 위한 파일을 선택합니다.", type=["pdf", "txt", "py", "md", "csv", "json"], key=chat.fileId)
     
     mcp_servers = [server for server, is_selected in mcp_selections.items() if is_selected]
+    
+    chat.update(modelName, reasoningMode, debugMode, multiRegion, gradingMode)
 
     st.success(f"Connected to {modelName}", icon="💚")
     clear_button = st.button("대화 초기화", key="clear")

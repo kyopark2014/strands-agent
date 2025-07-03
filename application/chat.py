@@ -49,9 +49,15 @@ model_id = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
 models = info.get_model_info(model_name)
 bedrock_region = "us-west-2"
 reasoning_mode = 'Disable'
+grading_mode = 'Disable'
+multi_region = "Disable"
+grading_mode = 'Disable'
 
-def update(modelName, reasoningMode, debugMode):    
-    global model_name, model_id, model_type, reasoning_mode, debug_mode
+def update(modelName, reasoningMode, debugMode, multiRegion, gradingMode):    
+    global model_name, model_id, model_type, reasoning_mode, debug_mode, multi_region, grading_mode
+
+    # load mcp.env    
+    mcp_env = utils.load_mcp_env()
     
     if model_name != modelName:
         model_name = modelName
@@ -67,6 +73,22 @@ def update(modelName, reasoningMode, debugMode):
     if debugMode != debug_mode:
         debug_mode = debugMode
         logger.info(f"debug_mode: {debug_mode}")        
+
+    if multiRegion != multi_region:
+        multi_region = multiRegion
+        logger.info(f"multi_region: {multi_region}")
+        mcp_env['multi_region'] = multi_region
+
+    if gradingMode != grading_mode:
+        grading_mode = gradingMode
+        logger.info(f"grading_mode: {grading_mode}")
+        mcp_env['grading_mode'] = grading_mode
+
+    # update mcp.env    
+    utils.save_mcp_env(mcp_env)
+    logger.info(f"mcp.env updated: {mcp_env}")
+
+
     
 def traslation(chat, text, input_language, output_language):
     system = (
