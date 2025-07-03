@@ -61,30 +61,51 @@ with st.sidebar:
         "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "tavily-manual", "사용자 설정"
     ]
 
-    mcp_options = strands_tools + mcp_tools
-    
     mcp_selections = {}
-    default_selections = ["basic", "filesystem", "use_aws"]
+    strands_selections = {}
+    default_strands_tools = []
+    default_mcp_selections = ["basic", "filesystem", "use_aws"]
+
+    with st.expander("Strands Tools 옵션 선택", expanded=True):            
+        # Create two columns
+        col1, col2 = st.columns(2)
+        
+        # Split options into two groups
+        mid_point = len(strands_tools) // 2
+        first_half = strands_tools[:mid_point]
+        second_half = strands_tools[mid_point:]
+        
+        # Display first group in the first column
+        with col1:
+            for option in first_half:
+                default_value = option in default_strands_tools
+                strands_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+        
+        # Display second group in the second column
+        with col2:
+            for option in second_half:
+                default_value = option in default_strands_tools
+                strands_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
 
     with st.expander("MCP 옵션 선택", expanded=True):            
         # Create two columns
         col1, col2 = st.columns(2)
         
         # Split options into two groups
-        mid_point = len(mcp_options) // 2
-        first_half = mcp_options[:mid_point]
-        second_half = mcp_options[mid_point:]
+        mid_point = len(mcp_tools) // 2
+        first_half = mcp_tools[:mid_point]
+        second_half = mcp_tools[mid_point:]
         
         # Display first group in the first column
         with col1:
             for option in first_half:
-                default_value = option in default_selections
+                default_value = option in default_mcp_selections
                 mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
         
         # Display second group in the second column
         with col2:
             for option in second_half:
-                default_value = option in default_selections
+                default_value = option in default_mcp_selections
                 mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
 
     if mcp_selections["사용자 설정"]:
@@ -131,7 +152,8 @@ with st.sidebar:
         # print('fileId: ', chat.fileId)
         uploaded_file = st.file_uploader("RAG를 위한 파일을 선택합니다.", type=["pdf", "txt", "py", "md", "csv", "json"], key=chat.fileId)
     
-    mcp_servers = [server for server, is_selected in mcp_selections.items() if is_selected]
+    selected_strands_tools = [tool for tool, is_selected in strands_selections.items() if is_selected]
+    selected_mcp_servers = [server for server, is_selected in mcp_selections.items() if is_selected]
     
     chat.update(modelName, reasoningMode, debugMode, multiRegion, gradingMode)
 
@@ -239,7 +261,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             "key": st.empty()
         }
         
-        response, image_urls = asyncio.run(strands_agent.run_agent(prompt, strands_tools, mcp_servers, history_mode, containers))
+        response, image_urls = asyncio.run(strands_agent.run_agent(prompt, selected_strands_tools, selected_mcp_servers, history_mode, containers))
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)

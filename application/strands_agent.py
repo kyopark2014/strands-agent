@@ -641,17 +641,17 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
                 message = event["message"]
                 logger.info(f"message: {message}")
 
-                for content in message["content"]:                
-                    if "text" in content:
-                        logger.info(f"text: {content["text"]}")
+                for msg_content in message["content"]:                
+                    if "text" in msg_content:
+                        logger.info(f"text: {msg_content["text"]}")
                         if chat.debug_mode == 'Enable':
-                            add_response(containers, content["text"])
+                            add_response(containers, msg_content["text"])
 
-                        result = content["text"]
+                        result = msg_content["text"]
                         current_response = ""
 
-                    if "toolUse" in content:
-                        tool_use = content["toolUse"]
+                    if "toolUse" in msg_content:
+                        tool_use = msg_content["toolUse"]
                         logger.info(f"tool_use: {tool_use}")
                         
                         tool_name = tool_use["name"]
@@ -662,8 +662,8 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
                             add_notification(containers, f"tool name: {tool_name}, arg: {input}")
                             containers['status'].info(get_status_msg(f"{tool_name}"))
                 
-                    if "toolResult" in content:
-                        tool_result = content["toolResult"]
+                    if "toolResult" in msg_content:
+                        tool_result = msg_content["toolResult"]
                         logger.info(f"tool_name: {tool_name}")
                         logger.info(f"tool_result: {tool_result}")
                         if "content" in tool_result:
