@@ -48,13 +48,25 @@ selected_mcp_servers = []
 index = 0
 def add_notification(containers, message):
     global index
-    containers['notification'][index].info(message)
-    index += 1
+    try:
+        if index < len(containers['notification']):
+            containers['notification'][index].info(message)
+            index += 1
+        else:
+            logger.warning(f"Index {index} out of range for notification containers (max: {len(containers['notification'])-1})")            
+    except Exception as e:
+        logger.error(f"Error in add_notification: {e}")
 
 def add_response(containers, message):
     global index
-    containers['notification'][index].markdown(message)
-    index += 1
+    try:
+        if index < len(containers['notification']):
+            containers['notification'][index].markdown(message)
+            index += 1
+        else:
+            logger.warning(f"Index {index} out of range for notification containers (max: {len(containers['notification'])-1})")
+    except Exception as e:
+        logger.error(f"Error in add_response: {e}")
 
 status_msg = []
 def get_status_msg(status):
@@ -720,7 +732,13 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
                 current_response += text_data
 
                 if chat.debug_mode == 'Enable':
-                    containers["notification"][index].markdown(current_response)
+                    try:
+                        if index < len(containers["notification"]):
+                            containers["notification"][index].markdown(current_response)
+                        else:
+                            logger.warning(f"Index {index} out of range for notification containers (max: {len(containers['notification'])-1})")
+                    except Exception as e:
+                        logger.error(f"Error updating notification container: {e}")
                 continue
 
     if chat.debug_mode == 'Enable':
@@ -734,7 +752,13 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
 
         # show reference
         if chat.debug_mode == 'Enable':
-            containers['notification'][index-1].markdown(result+ref)
+            try:
+                if index > 0 and index-1 < len(containers['notification']):
+                    containers['notification'][index-1].markdown(result+ref)
+                else:
+                    logger.warning(f"Index {index-1} out of range for notification containers")
+            except Exception as e:
+                logger.error(f"Error showing reference: {e}")
 
     return result+ref, image_url
 
@@ -853,7 +877,13 @@ async def run_task(question, strands_tools, mcp_servers, system_prompt, containe
                 current_response += text_data
 
                 if chat.debug_mode == 'Enable':
-                    containers["notification"][index].markdown(current_response)
+                    try:
+                        if index < len(containers["notification"]):
+                            containers["notification"][index].markdown(current_response)
+                        else:
+                            logger.warning(f"Index {index} out of range for notification containers (max: {len(containers['notification'])-1})")
+                    except Exception as e:
+                        logger.error(f"Error updating notification container: {e}")
                 continue
 
     if chat.debug_mode == 'Enable':
@@ -867,7 +897,13 @@ async def run_task(question, strands_tools, mcp_servers, system_prompt, containe
 
         # show reference
         if chat.debug_mode == 'Enable':
-            containers['notification'][index-1].markdown(result+ref)
+            try:
+                if index > 0 and index-1 < len(containers['notification']):
+                    containers['notification'][index-1].markdown(result+ref)
+                else:
+                    logger.warning(f"Index {index-1} out of range for notification containers")
+            except Exception as e:
+                logger.error(f"Error showing reference: {e}")
 
     return result, image_url, status_msg, response_msg
 

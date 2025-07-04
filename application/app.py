@@ -12,7 +12,7 @@ import strands_agent
 from langchain.docstore.document import Document
 
 logging.basicConfig(
-    level=logging.INFO,  # Default to INFO level
+    level=logging.INFO,  
     format='%(filename)s:%(lineno)d | %(message)s',
     handlers=[
         logging.StreamHandler(sys.stderr)
@@ -64,7 +64,7 @@ with st.sidebar:
     mcp_selections = {}
     strands_selections = {}
     default_strands_tools = []
-    default_mcp_selections = ["basic", "filesystem", "use_aws"]
+    default_mcp_selections = ["basic", "filesystem", "terminal", "use_aws"]
 
     with st.expander("Strands Tools 옵션 선택", expanded=True):            
         # Create two columns
@@ -257,7 +257,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
         containers = {
             "tools": st.empty(),
             "status": st.empty(),
-            "notification": [st.empty() for _ in range(100)],
+            "notification": [st.empty() for _ in range(500)],
             "key": st.empty()
         }
         

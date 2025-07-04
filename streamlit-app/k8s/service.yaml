@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamlit-app-service
+spec:
+  selector:
+    app: streamlit-app
+  ports:
+  - port: 80
+    targetPort: 8501
+  type: NodePort
