@@ -4,11 +4,11 @@
 echo "🚀 Strands Agent Docker Build Script (with ARG credentials)"
 echo "=========================================================="
 
-# Check if AWS CLI is configured
-if ! command -v aws &> /dev/null; then
-    echo "❌ AWS CLI is not installed. Please install AWS CLI first."
-    exit 1
-fi
+# # Check if AWS CLI is configured
+# if ! command -v aws &> /dev/null; then
+#     echo "❌ AWS CLI is not installed. Please install AWS CLI first."
+#     exit 1
+# fi
 
 # Get AWS credentials from local AWS CLI configuration
 echo "📋 Getting AWS credentials from local configuration..."
