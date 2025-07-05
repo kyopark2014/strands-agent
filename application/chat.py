@@ -8,8 +8,9 @@ import sys
 import re
 import PyPDF2
 import csv
-from botocore.config import Config
+import os
 
+from botocore.config import Config
 from urllib import parse
 from langchain_aws import ChatBedrock
 from langchain_core.prompts import ChatPromptTemplate
@@ -150,16 +151,35 @@ def get_chat(extended_thinking):
     elif model_type == 'claude':
         STOP_SEQUENCE = "\n\nHuman:" 
                           
+    # AWS 자격 증명 설정
+    aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+    aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
+    
     # bedrock   
-    boto3_bedrock = boto3.client(
-        service_name='bedrock-runtime',
-        region_name=bedrock_region,
-        config=Config(
-            retries = {
-                'max_attempts': 30
-            }
+    if aws_access_key and aws_secret_key:
+        boto3_bedrock = boto3.client(
+            service_name='bedrock-runtime',
+            region_name=bedrock_region,
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            aws_session_token=aws_session_token,
+            config=Config(
+                retries = {
+                    'max_attempts': 30
+                }
+            )
         )
-    )
+    else:
+        boto3_bedrock = boto3.client(
+            service_name='bedrock-runtime',
+            region_name=bedrock_region,
+            config=Config(
+                retries = {
+                    'max_attempts': 30
+                }
+            )
+        )
     if extended_thinking=='Enable':
         maxReasoningOutputTokens=64000
         logger.info(f"extended_thinking: {extended_thinking}")
@@ -232,7 +252,21 @@ def get_summary(docs):
 
 # load documents from s3 for pdf and txt
 def load_document(file_type, s3_file_name):
-    s3r = boto3.resource("s3")
+    # AWS 자격 증명 설정
+    aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+    aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
+    
+    if aws_access_key and aws_secret_key:
+        s3r = boto3.resource(
+            "s3",
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            aws_session_token=aws_session_token
+        )
+    else:
+        s3r = boto3.resource("s3")
+        
     doc = s3r.Object(s3_bucket, s3_prefix+'/'+s3_file_name)
     logger.info(f"s3_bucket: {s3_bucket}, s3_prefix: {s3_prefix}, s3_file_name: {s3_file_name}")
     
@@ -316,10 +350,24 @@ def get_summary_of_uploaded_file(file_name, st):
 
 # load csv documents from s3
 def load_csv_document(s3_file_name):
-    s3r = boto3.resource(
-        service_name='s3',
-        region_name=bedrock_region
-    )
+    # AWS 자격 증명 설정
+    aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+    aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
+    
+    if aws_access_key and aws_secret_key:
+        s3r = boto3.resource(
+            service_name='s3',
+            region_name=bedrock_region,
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            aws_session_token=aws_session_token
+        )
+    else:
+        s3r = boto3.resource(
+            service_name='s3',
+            region_name=bedrock_region
+        )
     doc = s3r.Object(s3_bucket, s3_prefix+'/'+s3_file_name)
 
     lines = doc.get()['Body'].read().decode('utf-8').split('\n')   # read csv per line
@@ -374,10 +422,24 @@ def upload_to_s3(file_bytes, file_name):
     Upload a file to S3 and return the URL
     """
     try:
-        s3_client = boto3.client(
-            service_name='s3',
-            region_name=bedrock_region
-        )
+        # AWS 자격 증명 설정
+        aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+        aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+        aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
+        
+        if aws_access_key and aws_secret_key:
+            s3_client = boto3.client(
+                service_name='s3',
+                region_name=bedrock_region,
+                aws_access_key_id=aws_access_key,
+                aws_secret_access_key=aws_secret_key,
+                aws_session_token=aws_session_token
+            )
+        else:
+            s3_client = boto3.client(
+                service_name='s3',
+                region_name=bedrock_region
+            )
         # Generate a unique file name to avoid collisions
         #timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         #unique_id = str(uuid.uuid4())[:8]

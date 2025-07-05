@@ -15,7 +15,7 @@ logger = logging.getLogger("aws-server-basic")
 
 try:
     mcp = FastMCP(
-        name = "basic",
+        name="basic",
         instructions=(
             "You are a helpful assistant. "
             "You can use tools for the user's question and provide the answer."
