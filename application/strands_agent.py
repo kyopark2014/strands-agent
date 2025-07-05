@@ -48,25 +48,13 @@ selected_mcp_servers = []
 index = 0
 def add_notification(containers, message):
     global index
-    try:
-        if index < len(containers['notification']):
-            containers['notification'][index].info(message)
-            index += 1
-        else:
-            logger.warning(f"Index {index} out of range for notification containers (max: {len(containers['notification'])-1})")            
-    except Exception as e:
-        logger.error(f"Error in add_notification: {e}")
+    containers['notification'][index].info(message)
+    index += 1
 
 def add_response(containers, message):
     global index
-    try:
-        if index < len(containers['notification']):
-            containers['notification'][index].markdown(message)
-            index += 1
-        else:
-            logger.warning(f"Index {index} out of range for notification containers (max: {len(containers['notification'])-1})")
-    except Exception as e:
-        logger.error(f"Error in add_response: {e}")
+    containers['notification'][index].markdown(message)
+    index += 1
 
 status_msg = []
 def get_status_msg(status):
@@ -79,34 +67,6 @@ def get_status_msg(status):
     else: 
         status = " -> ".join(status_msg)
         return "[status]\n" + status    
-
-def load_config_by_name(name):
-    if name == "image generation":
-        config = mcp_config.load_config('image_generation')
-    elif name == "aws diagram":
-        config = mcp_config.load_config('aws_diagram')
-    elif name == "aws document":
-        config = mcp_config.load_config('aws_documentation')
-    elif name == "aws cost":
-        config = mcp_config.load_config('aws_cost')
-    elif name == "ArXiv":
-        config = mcp_config.load_config('arxiv')
-    elif name == "aws cloudwatch":
-        config = mcp_config.load_config('aws_cloudwatch')
-    elif name == "aws storage":
-        config = mcp_config.load_config('aws_storage')
-    elif name == "knowledge base":
-        config = mcp_config.load_config('knowledge_base_lambda')
-    elif name == "code interpreter":
-        config = mcp_config.load_config('code_interpreter')
-    elif name == "aws cli":
-        config = mcp_config.load_config('aws_cli')
-    elif name == "text editor":
-        config = mcp_config.load_config('text_editor')
-    else:
-        config = mcp_config.load_config(name)
-    logger.info(f"config: {config}")
-    return config
 
 #########################################################
 # Strands Agent 
@@ -250,7 +210,7 @@ def init_mcp_clients(mcp_servers: list):
     
     for tool in mcp_servers:
         logger.info(f"Initializing MCP client for tool: {tool}")
-        config = load_config_by_name(tool)
+        config = mcp_config.load_config(tool)
         # logger.info(f"config: {config}")
 
         # Skip if config is empty or doesn't have mcpServers
@@ -460,7 +420,7 @@ def get_tool_info(tool_name, tool_content):
                                 # logger.info(f"uri (list): {uri}")
                                 ext = uri.split(".")[-1]
 
-                                # ext가 이미지라면 
+                                # if ext is an image 
                                 sharing_url = utils.sharing_url
                                 url = sharing_url + "/" + s3_prefix + "/" + uri.split("/")[-1]
                                 if ext in ["jpg", "jpeg", "png", "gif", "bmp", "tiff", "ico", "webp"]:
@@ -653,17 +613,17 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
                 message = event["message"]
                 logger.info(f"message: {message}")
 
-                for msg_content in message["content"]:                
-                    if "text" in msg_content:
-                        logger.info(f"text: {msg_content["text"]}")
+                for content in message["content"]:                
+                    if "text" in content:
+                        logger.info(f"text: {content['text']}")
                         if chat.debug_mode == 'Enable':
-                            add_response(containers, msg_content["text"])
+                            add_response(containers, content['text'])
 
-                        result = msg_content["text"]
+                        result = content['text']
                         current_response = ""
 
-                    if "toolUse" in msg_content:
-                        tool_use = msg_content["toolUse"]
+                    if "toolUse" in content:
+                        tool_use = content["toolUse"]
                         logger.info(f"tool_use: {tool_use}")
                         
                         tool_name = tool_use["name"]
@@ -674,19 +634,19 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
                             add_notification(containers, f"tool name: {tool_name}, arg: {input}")
                             containers['status'].info(get_status_msg(f"{tool_name}"))
                 
-                    if "toolResult" in msg_content:
-                        tool_result = msg_content["toolResult"]
+                    if "toolResult" in content:
+                        tool_result = content["toolResult"]
                         logger.info(f"tool_name: {tool_name}")
                         logger.info(f"tool_result: {tool_result}")
                         if "content" in tool_result:
-                            tool_content = tool_result["content"]
+                            tool_content = tool_result['content']
                             for content in tool_content:
                                 if "text" in content:
                                     if chat.debug_mode == 'Enable':
-                                        add_notification(containers, f"tool result: {content["text"]}")
+                                        add_notification(containers, f"tool result: {content['text']}")
 
                                     try:
-                                        json_data = json.loads(content["text"])
+                                        json_data = json.loads(content['text'])
                                         if isinstance(json_data, dict) and "path" in json_data:
                                             paths = json_data["path"]
                                             logger.info(f"paths: {paths}")
@@ -697,7 +657,7 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
                                     except json.JSONDecodeError:
                                         pass
 
-                                    content, urls, refs = get_tool_info(tool_name, content["text"])
+                                    content, urls, refs = get_tool_info(tool_name, content['text'])
                                     logger.info(f"content: {content}")
                                     logger.info(f"urls: {urls}")
                                     logger.info(f"refs: {refs}")
@@ -732,13 +692,7 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
                 current_response += text_data
 
                 if chat.debug_mode == 'Enable':
-                    try:
-                        if index < len(containers["notification"]):
-                            containers["notification"][index].markdown(current_response)
-                        else:
-                            logger.warning(f"Index {index} out of range for notification containers (max: {len(containers['notification'])-1})")
-                    except Exception as e:
-                        logger.error(f"Error updating notification container: {e}")
+                    containers["notification"][index].markdown(current_response)
                 continue
 
     if chat.debug_mode == 'Enable':
@@ -752,13 +706,7 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
 
         # show reference
         if chat.debug_mode == 'Enable':
-            try:
-                if index > 0 and index-1 < len(containers['notification']):
-                    containers['notification'][index-1].markdown(result+ref)
-                else:
-                    logger.warning(f"Index {index-1} out of range for notification containers")
-            except Exception as e:
-                logger.error(f"Error showing reference: {e}")
+            containers['notification'][index-1].markdown(result+ref)
 
     return result+ref, image_url
 
@@ -802,9 +750,9 @@ async def run_task(question, strands_tools, mcp_servers, system_prompt, containe
                     if "text" in content:
                         logger.info(f"text: {content['text']}")
                         if chat.debug_mode == 'Enable':
-                            add_response(containers, content["text"])
+                            add_response(containers, content['text'])
 
-                        result = content["text"]
+                        result = content['text']
                         current_response = ""
 
                     if "toolUse" in content:
@@ -824,14 +772,14 @@ async def run_task(question, strands_tools, mcp_servers, system_prompt, containe
                         logger.info(f"tool_name: {tool_name}")
                         logger.info(f"tool_result: {tool_result}")
                         if "content" in tool_result:
-                            tool_content = tool_result["content"]
+                            tool_content = tool_result['content']
                             for content in tool_content:
                                 if "text" in content:
                                     if chat.debug_mode == 'Enable':
-                                        add_notification(containers, f"tool result: {content["text"]}")
+                                        add_notification(containers, f"tool result: {content['text']}")
 
                                     try:
-                                        json_data = json.loads(content["text"])
+                                        json_data = json.loads(content['text'])
                                         if isinstance(json_data, dict) and "path" in json_data:
                                             paths = json_data["path"]
                                             logger.info(f"paths: {paths}")
@@ -842,7 +790,7 @@ async def run_task(question, strands_tools, mcp_servers, system_prompt, containe
                                     except json.JSONDecodeError:
                                         pass
 
-                                    content, urls, refs = get_tool_info(tool_name, content["text"])
+                                    content, urls, refs = get_tool_info(tool_name, content['text'])
                                     logger.info(f"content: {content}")
                                     logger.info(f"urls: {urls}")
                                     logger.info(f"refs: {refs}")
@@ -877,13 +825,7 @@ async def run_task(question, strands_tools, mcp_servers, system_prompt, containe
                 current_response += text_data
 
                 if chat.debug_mode == 'Enable':
-                    try:
-                        if index < len(containers["notification"]):
-                            containers["notification"][index].markdown(current_response)
-                        else:
-                            logger.warning(f"Index {index} out of range for notification containers (max: {len(containers['notification'])-1})")
-                    except Exception as e:
-                        logger.error(f"Error updating notification container: {e}")
+                    containers["notification"][index].markdown(current_response)
                 continue
 
     if chat.debug_mode == 'Enable':
@@ -897,13 +839,7 @@ async def run_task(question, strands_tools, mcp_servers, system_prompt, containe
 
         # show reference
         if chat.debug_mode == 'Enable':
-            try:
-                if index > 0 and index-1 < len(containers['notification']):
-                    containers['notification'][index-1].markdown(result+ref)
-                else:
-                    logger.warning(f"Index {index-1} out of range for notification containers")
-            except Exception as e:
-                logger.error(f"Error showing reference: {e}")
+            containers['notification'][index-1].markdown(result+ref)
 
     return result, image_url, status_msg, response_msg
 

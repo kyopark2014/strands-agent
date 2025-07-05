@@ -1,9 +1,6 @@
-import chat
 import logging
 import sys
 import utils
-import json
-import boto3
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
@@ -18,34 +15,34 @@ config = utils.load_config()
 print(f"config: {config}")
 
 aws_region = config["region"] if "region" in config else "us-west-2"
-projectName = config["projectName"] if "projectName" in config else "mcp-rag"
+projectName = config["projectName"] if "projectName" in config else "mcp"
 
 mcp_user_config = {}    
-
-# api key to use perplexity Search
-secretsmanager = boto3.client(
-    service_name='secretsmanager',
-    region_name=aws_region
-)
-
-perplexity_key = ""
-try:
-    get_perplexity_api_secret = secretsmanager.get_secret_value(
-        SecretId=f"perplexityapikey-{projectName}"
-    )
-    #print('get_perplexity_api_secret: ', get_perplexity_api_secret)
-    secret = json.loads(get_perplexity_api_secret['SecretString'])
-    #print('secret: ', secret)
-
-    if "perplexity_api_key" in secret:
-        perplexity_key = secret['perplexity_api_key']
-        #print('perplexity_api_key: ', perplexity_api_key)
-
-except Exception as e: 
-    logger.info(f"perplexity credential is required: {e}")
-    raise e
-
 def load_config(mcp_type):
+    if mcp_type == "image generation":
+        mcp_type = 'image_generation'
+    elif mcp_type == "aws diagram":
+        mcp_type = 'aws_diagram'
+    elif mcp_type == "aws document":
+        mcp_type = 'aws_documentation'
+    elif mcp_type == "aws cost":
+        mcp_type = 'aws_cost'
+    elif mcp_type == "ArXiv":
+        mcp_type = 'arxiv'
+    elif mcp_type == "aws cloudwatch":
+        mcp_type = 'aws_cloudwatch'
+    elif mcp_type == "aws storage":
+        mcp_type = 'aws_storage'
+    elif mcp_type == "knowledge base":
+        mcp_type = 'knowledge_base_lambda'
+    elif mcp_type == "code interpreter":
+        mcp_type = 'code_interpreter'
+    elif mcp_type == "aws cli":
+        mcp_type = 'aws_cli'
+    elif mcp_type == "text editor":
+        mcp_type = 'text_editor'
+    logger.info(f"mcp_type: {mcp_type}")
+
     if mcp_type == "basic":
         return {
             "mcpServers": {
@@ -159,7 +156,7 @@ def load_config(mcp_type):
                     }
                 }
             }
-        }    
+        }  
     
     elif mcp_type == "aws_storage":
         return {
@@ -202,7 +199,7 @@ def load_config(mcp_type):
                 }
             }
         }
-    
+        
     elif mcp_type == "knowledge_base_lambda":
         return {
             "mcpServers": {
@@ -239,19 +236,18 @@ def load_config(mcp_type):
             }
         }    
     
-    # elif mcp_type == "tavily":
-    #     return {
-    #         "mcpServers": {
-    #             "tavily-mcp": {
-    #                 "command": "npx",
-    #                 "args": ["-y", "tavily-mcp@0.1.4"],
-    #                 "env": {
-    #                     "TAVILY_API_KEY": utils.tavily_key
-    #                 },
-    #             }
-    #         }
-    #     }
-    
+    elif mcp_type == "tavily":
+        return {
+            "mcpServers": {
+                "tavily-mcp": {
+                    "command": "npx",
+                    "args": ["-y", "tavily-mcp@0.1.4"],
+                    "env": {
+                        "TAVILY_API_KEY": utils.tavily_key
+                    },
+                }
+            }
+        }
     elif mcp_type == "wikipedia":
         return {
             "mcpServers": {
@@ -308,7 +304,7 @@ def load_config(mcp_type):
                         "perplexity-mcp"
                     ],
                     "env": {
-                        "PERPLEXITY_API_KEY": perplexity_key,
+                        "PERPLEXITY_API_KEY": utils.perplexity_key,
                         "PERPLEXITY_MODEL": "sonar"
                     }
                 }
@@ -401,6 +397,18 @@ def load_config(mcp_type):
                     "command": "python",
                     "args": [
                         "application/mcp_server_use_aws.py"
+                    ]
+                }
+            }
+        }
+    
+    elif mcp_type == "use_aws":
+        return {
+            "mcpServers": {
+                "use_aws": {
+                    "command": "python",
+                    "args": [
+                        "application/mcp_server_use_aws.py"
                     ],
                     "env": {
                         "AWS_REGION": aws_region,
@@ -424,51 +432,23 @@ def load_config(mcp_type):
                 }
             }
         }
-        
+    
     elif mcp_type == "사용자 설정":
         return mcp_user_config
 
-def load_selected_config(mcp_selections: dict[str, bool]):
-    #logger.info(f"mcp_selections: {mcp_selections}")
+def load_selected_config(mcp_servers: dict):
+    logger.info(f"mcp_servers: {mcp_servers}")
+    
     loaded_config = {}
-
-    selected_servers = [server for server, is_selected in mcp_selections.items() if is_selected]
-    logger.info(f"selected_servers: {selected_servers}")
-
-    for server in selected_servers:
+    for server in mcp_servers:
         logger.info(f"server: {server}")
 
-        if server == "image generation":
-            config = load_config('image_generation')
-        elif server == "aws diagram":
-            config = load_config('aws_diagram')
-        elif server == "aws document":
-            config = load_config('aws_documentation')
-        elif server == "aws cost":
-            config = load_config('aws_cost')
-        elif server == "ArXiv":
-            config = load_config('arxiv')
-        elif server == "aws cloudwatch":
-            config = load_config('aws_cloudwatch')
-        elif server == "aws storage":
-            config = load_config('aws_storage')
-        elif server == "knowledge base":
-            config = load_config('knowledge_base_lambda')
-        elif server == "code interpreter":
-            config = load_config('code_interpreter')
-        elif server == "aws cli":
-            config = load_config('aws_cli')
-        elif server == "text editor":
-            config = load_config('text_editor')
-        else:
-            config = load_config(server)
-        logger.info(f"config: {config}")
+        config = load_config(server)
+        # logger.info(f"config: {config}")
         
         if config:
             loaded_config.update(config["mcpServers"])
-
-    logger.info(f"loaded_config: {loaded_config}")
-        
+    # logger.info(f"loaded_config: {loaded_config}")        
     return {
         "mcpServers": loaded_config
     }
