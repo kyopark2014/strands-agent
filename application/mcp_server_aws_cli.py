@@ -24,7 +24,7 @@ logger = logging.getLogger("mcp-server-aws-cost")
 
 try:
     mcp = FastMCP(
-        name = "tools",
+        name = "aws_cli",
         instructions=(
             "You are a helpful assistant. "
             "You can check the status of Amazon S3 and retrieve insights."

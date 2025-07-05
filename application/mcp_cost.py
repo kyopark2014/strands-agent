@@ -261,10 +261,6 @@ def get_url(figure, prefix):
 def create_service_cost_visualizations():
     """Cost Visualization of aws services"""
     logger.info("Creating cost visualizations...")
-
-    if not service_cost_data:
-        logger.info("No cost data available")
-        return None
         
     paths = []
     

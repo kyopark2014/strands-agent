@@ -90,7 +90,7 @@ os_client = OpenSearch(
 def is_not_exist(index_name):    
     logger.info(f"index_name: {index_name}")
         
-    if os_client.indices.exists(index_name):
+    if os_client.indices.exists(index=index_name):
         logger.info(f"use exist index: {index_name}")
         return False
     else:
@@ -159,7 +159,7 @@ def initiate_knowledge_base():
 
         try: # create index
             response = os_client.indices.create(
-                vectorIndexName,
+                index=vectorIndexName,
                 body=body
             )
             logger.info(f"opensearch index was created: {response}")
