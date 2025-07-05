@@ -800,7 +800,7 @@ async def run_task(question, strands_tools, mcp_servers, system_prompt, containe
 
                 for content in message["content"]:                
                     if "text" in content:
-                        logger.info(f"text: {content["text"]}")
+                        logger.info(f"text: {content['text']}")
                         if chat.debug_mode == 'Enable':
                             add_response(containers, content["text"])
 
