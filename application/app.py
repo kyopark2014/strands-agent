@@ -64,7 +64,7 @@ with st.sidebar:
     mcp_selections = {}
     strands_selections = {}
     default_strands_tools = []
-    default_mcp_selections = ["basic", "filesystem", "terminal", "use_aws"]
+    default_mcp_selections = ["basic", "filesystem", "use_aws"]
 
     with st.expander("Strands Tools 옵션 선택", expanded=True):            
         # Create two columns
