@@ -8,7 +8,7 @@ import traceback
 import json
 import re
 import utils
-
+import os
 from pytz import timezone
 from bs4 import BeautifulSoup
 
@@ -21,6 +21,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mcp-basic")
 
+aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
+aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
+
 def get_current_time(format: str=f"%Y-%m-%d %H:%M:%S")->str:
     """Returns the current date and time in the specified format"""
     # f"%Y-%m-%d %H:%M:%S"
@@ -30,59 +35,6 @@ def get_current_time(format: str=f"%Y-%m-%d %H:%M:%S")->str:
     logger.info(f"timestr: {timestr}")
     
     return timestr
-
-def get_book_list(keyword: str) -> str:
-    """
-    Search book list by keyword and then return book list
-    keyword: search keyword
-    return: book list
-    """
-    
-    keyword = keyword.replace('\'','')
-
-    answer = ""
-    url = f"https://search.kyobobook.co.kr/search?keyword={keyword}&gbCode=TOT&target=total"
-    response = requests.get(url)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, "html.parser")
-        prod_info = soup.find_all("a", attrs={"class": "prod_info"})
-        
-        if len(prod_info):
-            answer = "추천 도서는 아래와 같습니다.\n"
-            
-        for prod in prod_info[:5]:
-            title = prod.text.strip().replace("\n", "")       
-            link = prod.get("href")
-            answer = answer + f"{title}, URL: {link}\n\n"
-    
-    return answer
-
-def get_book_list(keyword: str) -> str:
-    """
-    Search book list by keyword and then return book list
-    keyword: search keyword
-    return: book list
-    """
-    
-    keyword = keyword.replace('\'','')
-
-    answer = ""
-    url = f"https://search.kyobobook.co.kr/search?keyword={keyword}&gbCode=TOT&target=total"
-    response = requests.get(url)
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.text, "html.parser")
-        prod_info = soup.find_all("a", attrs={"class": "prod_info"})
-        
-        if len(prod_info):
-            answer = "추천 도서는 아래와 같습니다.\n"
-            
-        for prod in prod_info[:5]:
-            title = prod.text.strip().replace("\n", "")       
-            link = prod.get("href")
-            answer = answer + f"{title}, URL: {link}\n\n"
-    
-    return answer
-
 
 def get_book_list(keyword: str) -> str:
     """
@@ -166,7 +118,6 @@ def get_weather_info(city: str) -> str:
         
     logger.info(f"weather_str: {weather_str}")                        
     return weather_str
-
 
 def stock_data_lookup(ticker, country, period="1mo"):
     """

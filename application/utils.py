@@ -22,6 +22,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mcp-basic")
 
+aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
+aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
+
 def load_config():
     config = None
     
@@ -81,120 +86,90 @@ def save_mcp_env(mcp_env):
         json.dump(mcp_env, f)
 
 # api key to get weather information in agent
-weather_api_key = ""
-
-# AWS 자격 증명 확인 및 설정
-def get_aws_client(service_name, region_name=None):
-    """AWS 클라이언트를 생성하고 자격 증명을 확인합니다."""
-    try:
-        # 환경 변수에서 자격 증명 확인
-        aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
-        aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
-        aws_region = region_name or os.environ.get('AWS_DEFAULT_REGION', bedrock_region)
-        
-        if aws_access_key and aws_secret_key:
-            # 환경 변수로 자격 증명 설정
-            client = boto3.client(
-                service_name=service_name,
-                region_name=aws_region,
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_key,
-                aws_session_token=os.environ.get('AWS_SESSION_TOKEN')
-            )
-        else:
-            # 기본 자격 증명 파일 사용
-            client = boto3.client(
-                service_name=service_name,
-                region_name=aws_region
-            )
-        
-        return client
-    except Exception as e:
-        logger.error(f"AWS 클라이언트 생성 실패: {e}")
-        return None
-
-secretsmanager = get_aws_client('secretsmanager', bedrock_region)
+if aws_access_key and aws_secret_key:
+    secretsmanager = boto3.client(
+        service_name='secretsmanager',
+        region_name=bedrock_region,
+        aws_access_key_id=aws_access_key,
+        aws_secret_access_key=aws_secret_key,
+        aws_session_token=aws_session_token,
+    )
+else:
+    secretsmanager = boto3.client(
+        service_name='secretsmanager',
+        region_name=bedrock_region
+    )
 
 # api key for weather
+weather_api_key = ""
 try:
-    if secretsmanager:
-        get_weather_api_secret = secretsmanager.get_secret_value(
-            SecretId=f"openweathermap-{projectName}"
-        )
-        secret = json.loads(get_weather_api_secret['SecretString'])
-        weather_api_key = secret['weather_api_key']
-    else:
-        logger.warning("AWS Secrets Manager 클라이언트를 사용할 수 없습니다. 환경 변수에서 직접 설정하세요.")
-        weather_api_key = os.environ.get('WEATHER_API_KEY', '')
+    get_weather_api_secret = secretsmanager.get_secret_value(
+        SecretId=f"openweathermap-{projectName}"
+    )
+    #print('get_weather_api_secret: ', get_weather_api_secret)
+    secret = json.loads(get_weather_api_secret['SecretString'])
+    #print('secret: ', secret)
+    weather_api_key = secret['weather_api_key']
 
 except Exception as e:
-    logger.warning(f"Weather API 키를 가져올 수 없습니다: {e}")
-    weather_api_key = os.environ.get('WEATHER_API_KEY', '')
+    raise e
 
 # api key to use Tavily Search
-tavily_key = ""
-tavily_api_wrapper = None
+tavily_key = tavily_api_wrapper = ""
 try:
-    if secretsmanager:
-        get_tavily_api_secret = secretsmanager.get_secret_value(
-            SecretId=f"tavilyapikey-{projectName}"
-        )
-        secret = json.loads(get_tavily_api_secret['SecretString'])
+    get_tavily_api_secret = secretsmanager.get_secret_value(
+        SecretId=f"tavilyapikey-{projectName}"
+    )
+    #print('get_tavily_api_secret: ', get_tavily_api_secret)
+    secret = json.loads(get_tavily_api_secret['SecretString'])
+    #print('secret: ', secret)
 
-        if "tavily_api_key" in secret:
-            tavily_key = secret['tavily_api_key']
+    if "tavily_api_key" in secret:
+        tavily_key = secret['tavily_api_key']
+        #print('tavily_api_key: ', tavily_api_key)
 
-            if tavily_key:
-                tavily_api_wrapper = TavilySearchAPIWrapper(tavily_api_key=tavily_key)
-            else:
-                logger.info(f"tavily_key is required.")
-    else:
-        logger.warning("AWS Secrets Manager 클라이언트를 사용할 수 없습니다. 환경 변수에서 직접 설정하세요.")
-        tavily_key = os.environ.get('TAVILY_API_KEY', '')
         if tavily_key:
             tavily_api_wrapper = TavilySearchAPIWrapper(tavily_api_key=tavily_key)
-            
+            #     os.environ["TAVILY_API_KEY"] = tavily_key
+
+        else:
+            logger.info(f"tavily_key is required.")
 except Exception as e: 
-    logger.warning(f"Tavily credential is required: {e}")
-    tavily_key = os.environ.get('TAVILY_API_KEY', '')
-    if tavily_key:
-        tavily_api_wrapper = TavilySearchAPIWrapper(tavily_api_key=tavily_key)
+    logger.info(f"Tavily credential is required: {e}")
+    raise e
 
 # api key to use firecrawl Search
 firecrawl_key = ""
 try:
-    if secretsmanager:
-        get_firecrawl_secret = secretsmanager.get_secret_value(
-            SecretId=f"firecrawlapikey-{projectName}"
-        )
-        secret = json.loads(get_firecrawl_secret['SecretString'])
+    get_firecrawl_secret = secretsmanager.get_secret_value(
+        SecretId=f"firecrawlapikey-{projectName}"
+    )
+    secret = json.loads(get_firecrawl_secret['SecretString'])
 
-        if "firecrawl_api_key" in secret:
-            firecrawl_key = secret['firecrawl_api_key']
-    else:
-        firecrawl_key = os.environ.get('FIRECRAWL_API_KEY', '')
-        
+    if "firecrawl_api_key" in secret:
+        firecrawl_key = secret['firecrawl_api_key']
+        # print('firecrawl_api_key: ', firecrawl_key)
 except Exception as e: 
-    logger.warning(f"Firecrawl credential is required: {e}")
-    firecrawl_key = os.environ.get('FIRECRAWL_API_KEY', '')
+    logger.info(f"Firecrawl credential is required: {e}")
+    raise e
 
 # api key to use perplexity Search
 perplexity_key = ""
 try:
-    if secretsmanager:
-        get_perplexity_api_secret = secretsmanager.get_secret_value(
-            SecretId=f"perplexityapikey-{projectName}"
-        )
-        secret = json.loads(get_perplexity_api_secret['SecretString'])
+    get_perplexity_api_secret = secretsmanager.get_secret_value(
+        SecretId=f"perplexityapikey-{projectName}"
+    )
+    #print('get_perplexity_api_secret: ', get_perplexity_api_secret)
+    secret = json.loads(get_perplexity_api_secret['SecretString'])
+    #print('secret: ', secret)
 
-        if "perplexity_api_key" in secret:
-            perplexity_key = secret['perplexity_api_key']
-    else:
-        perplexity_key = os.environ.get('PERPLEXITY_API_KEY', '')
+    if "perplexity_api_key" in secret:
+        perplexity_key = secret['perplexity_api_key']
+        #print('perplexity_api_key: ', perplexity_api_key)
 
 except Exception as e: 
-    logger.warning(f"perplexity credential is required: {e}")
-    perplexity_key = os.environ.get('PERPLEXITY_API_KEY', '')
+    logger.info(f"perplexity credential is required: {e}")
+    raise e
 
 async def generate_pdf_report(report_content: str, filename: str) -> str:
     """
