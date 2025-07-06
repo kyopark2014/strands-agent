@@ -6,10 +6,7 @@ boto3
 langchain_aws 
 langchain 
 langchain_community 
-langgraph 
 langchain_experimental
-langgraph-supervisor 
-langgraph-swarm
 tavily-python==0.5.0 
 yfinance==0.2.52 
 pytz==2024.2 
