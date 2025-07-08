@@ -109,16 +109,41 @@ with st.sidebar:
                 mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
 
     if mcp_selections["사용자 설정"]:
+        mcp = {}
+        try:
+            with open("user_defined_mcp.json", "r", encoding="utf-8") as f:
+                mcp = json.load(f)
+                logger.info(f"loaded user defined mcp: {mcp}")
+        except FileNotFoundError:
+            logger.info("user_defined_mcp.json not found")
+            pass
+        
+        mcp_json_str = json.dumps(mcp, ensure_ascii=False, indent=2) if mcp else ""
+        
         mcp_info = st.text_area(
             "MCP 설정을 JSON 형식으로 입력하세요",
-            value=mcp_config.mcp_user_config,
+            value=mcp_json_str,
             height=150
         )
         logger.info(f"mcp_info: {mcp_info}")
 
         if mcp_info:
-            mcp_config.mcp_user_config = json.loads(mcp_info)
-            logger.info(f"mcp_user_config: {mcp_config.mcp_user_config}")
+            try:
+                mcp_config.mcp_user_config = json.loads(mcp_info)
+                logger.info(f"mcp_user_config: {mcp_config.mcp_user_config}")                    
+                st.success("JSON 설정이 성공적으로 로드되었습니다.")                    
+            except json.JSONDecodeError as e:
+                st.error(f"JSON 파싱 오류: {str(e)}")
+                st.error("올바른 JSON 형식으로 입력해주세요.")
+                logger.error(f"JSON 파싱 오류: {str(e)}")
+                mcp_config.mcp_user_config = {}
+        else:
+            mcp_config.mcp_user_config = {}
+                
+        with open("user_defined_mcp.json", "w", encoding="utf-8") as f:
+            json.dump(mcp_config.mcp_user_config, f, ensure_ascii=False, indent=4)
+        logger.info("save to user_defined_mcp.json")
+
     # model selection box
     modelName = st.selectbox(
         '🖊️ 사용 모델을 선택하세요',
