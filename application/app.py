@@ -8,6 +8,7 @@ import logging
 import sys
 import knowledge_base as kb
 import strands_agent
+import strands_supervisor
 
 from langchain.docstore.document import Document
 
@@ -31,6 +32,12 @@ mode_descriptions = {
     ],
     "Agent (Chat)": [
         "대화가 가능한 Strands Agent입니다."
+    ],
+    "Strands Supervisor": [
+        "Supervisor를 이용한 Multi-agent Collaboration입니다. 여기에서는 Supervisor/Collaborators의 구조를 가지고 있습니다."
+    ],
+    "Strands Swarm": [
+        "Swarm를 이용한 Multi-agent Collaboration입니다. 여기에서는 Agent들 사이에 서로 정보를 교환합니다."
     ]
 }
 
@@ -46,7 +53,7 @@ with st.sidebar:
     
     # radio selection
     mode = st.radio(
-        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)"], index=0
+        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)", "Strands Supervisor", "Strands Swarm"], index=0
     )   
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)
@@ -274,19 +281,27 @@ if prompt := st.chat_input("메시지를 입력하세요."):
     #logger.info(f"is_updated: {agent.is_updated}")
 
     with st.chat_message("assistant"):
-        if mode == 'Agent':
-            history_mode = "Disable"
-        elif mode == 'Agent (Chat)':
-            history_mode = "Enable"
-
         containers = {
             "tools": st.empty(),
             "status": st.empty(),
             "notification": [st.empty() for _ in range(500)],
             "key": st.empty()
         }
-        
-        response, image_urls = asyncio.run(strands_agent.run_agent(prompt, selected_strands_tools, selected_mcp_servers, history_mode, containers))
+
+        image_urls = []
+        if mode == 'Agent':
+            history_mode = "Disable"
+            response, image_urls = asyncio.run(strands_agent.run_agent(prompt, selected_strands_tools, selected_mcp_servers, history_mode, containers))
+
+        elif mode == 'Agent (Chat)':
+            history_mode = "Enable"
+            response, image_urls = asyncio.run(strands_agent.run_agent(prompt, selected_strands_tools, selected_mcp_servers, history_mode, containers))
+
+        elif mode == 'Strands Supervisor':
+            response = asyncio.run(strands_supervisor.run_agent(prompt, containers))
+
+        elif mode == 'Strands Swarm':
+            response = asyncio.run(strands_supervisor.run_agent(prompt, containers))
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)
