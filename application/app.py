@@ -9,6 +9,7 @@ import sys
 import knowledge_base as kb
 import strands_agent
 import strands_supervisor
+import strands_swarm
 
 from langchain.docstore.document import Document
 
@@ -301,7 +302,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             response = asyncio.run(strands_supervisor.run_agent(prompt, containers))
 
         elif mode == 'Strands Swarm':
-            response = asyncio.run(strands_supervisor.run_agent(prompt, containers))
+            response = asyncio.run(strands_swarm.run_agent(prompt, containers))
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)

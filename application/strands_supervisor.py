@@ -1,3 +1,4 @@
+# agent-as-tool type 
 # Sources from https://github.com/strands-agents/samples/blob/main/01-tutorials/02-multi-agent-systems/01-agent-as-tool/agent-as-tools.ipynb
 
 import chat

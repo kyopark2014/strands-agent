@@ -27,8 +27,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-tool_list = []
-
 update_required = False
 initiated = False
 strands_tools = []
@@ -579,7 +577,7 @@ async def initiate_agent(system_prompt, strands_tools, mcp_servers, historyMode)
     image_url = []    
     references = []    
 
-    global agent, initiated, update_required, tool_list
+    global agent, initiated, update_required
     global selected_strands_tools, selected_mcp_servers
 
     if selected_strands_tools != strands_tools:
@@ -594,25 +592,22 @@ async def initiate_agent(system_prompt, strands_tools, mcp_servers, historyMode)
         update_required = True
         logger.info(f"mcp_servers: {mcp_servers}")
 
-    if not initiated: 
-        logger.info("create agent!")
+    if not initiated or update_required:         
         init_mcp_clients(mcp_servers)
         tools = update_tools(strands_tools, mcp_servers)
         logger.info(f"tools: {tools}")
 
         agent = create_agent(system_prompt, tools, historyMode)
         tool_list = get_tool_list(tools)
-        initiated = True
-    elif update_required:      
-        logger.info(f"update_required: {update_required}")
-        logger.info("update agent!")
-        init_mcp_clients(mcp_servers)
-        tools = update_tools(strands_tools, mcp_servers)
-        logger.info(f"tools: {tools}")
 
-        agent = create_agent(system_prompt, tools, historyMode)
-        tool_list = get_tool_list(tools)
-        update_required = False
+        if not initiated:
+            logger.info("create agent!")
+            initiated = True
+        else:
+            logger.info("update agent!")
+            update_required = False
+
+    return agent, tool_list
 
 async def show_streams(agent_stream, containers):
     tool_name = ""
@@ -725,7 +720,7 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
         containers['status'].info(get_status_msg(f"(start"))    
 
     # initiate agent
-    await initiate_agent(None, strands_tools, mcp_servers, historyMode)
+    agent, tool_list = await initiate_agent(None, strands_tools, mcp_servers, historyMode)
     logger.info(f"tool_list: {tool_list}")    
     if chat.debug_mode == 'Enable':
         containers['tools'].info(f"tool_list: {tool_list}")
