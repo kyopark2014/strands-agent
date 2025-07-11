@@ -388,6 +388,50 @@ if "event_loop_metrics" in event and \
 
 ## Multi Agent
 
+### Supervisor
+
+[agent-as-tools](https://github.com/strands-agents/samples/tree/main/01-tutorials/02-multi-agent-systems/01-agent-as-tool)에 따라 collaborator들을 tool로 등록하는 방법으로 supervisor agent를 구현할 수 있습니다.
+
+[strands_supervisor.py](./application/strands_supervisor.py)와 같이 먼저 strands agent의 tool로 agent를 정의합니다.
+
+```python
+@tool
+async def trip_planning_assistant(query: str) -> str:
+    """
+    Create travel itineraries and provide travel advice.
+    Args:
+        query: A travel planning request with destination and preferences
+    Returns:
+        A detailed travel itinerary or travel advice
+    """
+    travel_agent = Agent(
+        model=strands_agent.get_model(),
+        system_prompt=TRIP_PLANNING_ASSISTANT_PROMPT,
+    )        
+    agent_stream = travel_agent.stream_async(query)
+    result = await show_streams(agent_stream, containers)
+
+    return result
+```
+
+이후 아래와 같이 supervisor를 위한 orchestration agent를 생성합니다.
+
+```python
+orchestrator = Agent(
+    model=strands_agent.get_model(),
+    system_prompt=MAIN_SYSTEM_PROMPT,
+    tools=[
+        research_assistant,
+        product_recommendation_assistant,
+        trip_planning_assistant,
+        file_write,
+    ],
+)
+agent_stream = orchestrator.stream_async(question)
+result = await show_streams(agent_stream, containers)
+```    
+
+
 ### Swarm
 
 [Multi-Agent Systems and Swarm Intelligence](https://strandsagents.com/latest/user-guide/concepts/multi-agent/swarm/)와 같이 Agent들이 서로 협조하면서 복잡한 문제를 해결 할 수 있습니다. [Creating Swarm of agents using Strands Agents](https://github.com/strands-agents/samples/blob/main/01-tutorials/02-multi-agent-systems/02-swarm-agent/swarm.ipynb)에서 strands agent에서 swarm을 사용할 수 있도록 tool을 제공하고 있습니다. 이때 agent에서 설정할 수 있는 협업 옵션은 아래와 같습니다.
