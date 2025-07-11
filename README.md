@@ -396,7 +396,29 @@ if "event_loop_metrics" in event and \
 - Competitive: Agents develop independent solutions and unique perspectives
 - Hybrid: Balances cooperation with independent exploration
 
+[strands_swarm.py](./application/strands_swarm.py)와 같이 strands agent로 swarm 형태로 복잡한 문제를 풀 수 있습니다. 여기에서는 swarm agent들로부터 얻어진 결과를 summarized agent로 정리하여 답변하고 있습니다.
 
+```python
+from strands_tools import swarm
+system_prompt = (
+    "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
+    "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
+    "모르는 질문을 받으면 솔직히 모른다고 말합니다."
+)
+
+agent = Agent(
+    model=strands_agent.get_model(),
+    system_prompt=system_prompt,
+    tools=[swarm]
+)
+
+result = agent.tool.swarm(
+    task=question,
+    swarm_size=2,
+    coordination_pattern="collaborative"
+)    
+logger.info(f"result of swarm: {result}")
+```
 
 ## 설치하기
 
