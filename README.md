@@ -386,6 +386,16 @@ if "event_loop_metrics" in event and \
                 image_urls.append(url)
 ```
 
+## Multi Agent
+
+### Swarm
+
+- Collaborative: Agents build upon others' insights and seek consensus
+- Competitive: Agents develop independent solutions and unique perspectives
+- Hybrid: Balances cooperation with independent exploration
+
+
+
 ## 설치하기
 
 Repository를 clone 합니다.
