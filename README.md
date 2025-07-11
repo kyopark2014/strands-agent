@@ -390,6 +390,8 @@ if "event_loop_metrics" in event and \
 
 ### Swarm
 
+[Multi-Agent Systems and Swarm Intelligence](https://strandsagents.com/latest/user-guide/concepts/multi-agent/swarm/)와 같이 Agent들이 서로 협조하면서 복잡한 문제를 해결 할 수 있습니다. [Creating Swarm of agents using Strands Agents](https://github.com/strands-agents/samples/blob/main/01-tutorials/02-multi-agent-systems/02-swarm-agent/swarm.ipynb)에서 strands agent에서 swarm을 사용할 수 있도록 tool을 제공하고 있습니다. 이때 agent에서 설정할 수 있는 협업 옵션은 아래와 같습니다.
+
 - Collaborative: Agents build upon others' insights and seek consensus
 - Competitive: Agents develop independent solutions and unique perspectives
 - Hybrid: Balances cooperation with independent exploration
