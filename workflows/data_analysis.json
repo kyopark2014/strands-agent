@@ -1,0 +1,50 @@
+{
+  "workflow_id": "data_analysis",
+  "created_at": "2025-07-11T05:32:20.975997+00:00",
+  "status": "completed",
+  "tasks": [
+    {
+      "task_id": "data_extraction",
+      "description": "Extract key financial data from the quarterly report",
+      "system_prompt": "You extract and structure financial data from reports.",
+      "priority": 5
+    },
+    {
+      "task_id": "trend_analysis",
+      "description": "Analyze trends in the data compared to previous quarters",
+      "dependencies": [
+        "data_extraction"
+      ],
+      "system_prompt": "You identify trends in financial time series.",
+      "priority": 3
+    },
+    {
+      "task_id": "report_generation",
+      "description": "Generate a comprehensive analysis report",
+      "dependencies": [
+        "trend_analysis"
+      ],
+      "system_prompt": "You create clear financial analysis reports.",
+      "priority": 2
+    }
+  ],
+  "current_task_index": 0,
+  "task_results": {
+    "data_extraction": {
+      "status": "completed",
+      "result": [],
+      "completed_at": "2025-07-11T05:32:29.390018+00:00"
+    },
+    "trend_analysis": {
+      "status": "completed",
+      "result": [],
+      "completed_at": "2025-07-11T05:32:39.084077+00:00"
+    },
+    "report_generation": {
+      "status": "completed",
+      "result": [],
+      "completed_at": "2025-07-11T05:32:48.777008+00:00"
+    }
+  },
+  "parallel_execution": true
+}
