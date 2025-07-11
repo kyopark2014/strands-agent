@@ -390,7 +390,7 @@ if "event_loop_metrics" in event and \
 
 ### Supervisor
 
-[agent-as-tools](https://github.com/strands-agents/samples/tree/main/01-tutorials/02-multi-agent-systems/01-agent-as-tool)에 따라 collaborator들을 tool로 등록하는 방법으로 supervisor agent를 구현할 수 있습니다.
+[agent-as-tools](https://github.com/strands-agents/samples/tree/main/01-tutorials/02-multi-agent-systems/01-agent-as-tool)에 따라 collaborator들을 tool로 등록하는 방법으로 supervisor형태의 multi agent를 구현할 수 있습니다.
 
 [strands_supervisor.py](./application/strands_supervisor.py)와 같이 먼저 strands agent의 tool로 agent를 정의합니다.
 
