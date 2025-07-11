@@ -208,6 +208,7 @@ async def run_agent(question, containers):
 
     # orchestrator agent
     orchestrator = Agent(
+        model=strands_agent.get_model(),
         system_prompt=MAIN_SYSTEM_PROMPT,
         tools=[
             research_assistant,
