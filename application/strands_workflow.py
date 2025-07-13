@@ -100,6 +100,7 @@ async def show_streams(agent_stream, containers):
 
 import strands_agent
 
+# agetic workflow
 async def run_workflow(question, containers):
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"(start"))    
@@ -147,7 +148,7 @@ async def run_workflow(question, containers):
 
     return report_result
 
-# supervisor agent
+# workflow tool
 async def run_workflow_tool(question, containers):
     global status_msg
     status_msg = []

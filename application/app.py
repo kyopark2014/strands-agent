@@ -11,6 +11,7 @@ import strands_agent
 import strands_supervisor
 import strands_swarm
 import strands_workflow
+import strands_graph
 
 from langchain.docstore.document import Document
 
@@ -43,6 +44,9 @@ mode_descriptions = {
     ],
     "Strands Workflow": [
         "Workflow를 이용한 Multi-agent Collaboration입니다. 여기에서는 Workflow의 구조를 가지고 있습니다."
+    ],
+    "Strands Graph": [
+        "Graph를 이용한 Multi-agent Collaboration입니다. 여기에서는 Graph의 구조를 가지고 있습니다."
     ]
 }
 
@@ -58,7 +62,7 @@ with st.sidebar:
     
     # radio selection
     mode = st.radio(
-        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)", "Strands Supervisor", "Strands Swarm Tool", "Strands Workflow"], index=0
+        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)", "Strands Supervisor", "Strands Swarm Tool", "Strands Workflow", "Strands Graph"], index=0
     )   
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)
@@ -311,6 +315,9 @@ if prompt := st.chat_input("메시지를 입력하세요."):
         elif mode == 'Strands Workflow':
             #response = asyncio.run(strands_workflow.run_workflow_tool(prompt, containers)) # workflow tool
             response = asyncio.run(strands_workflow.run_workflow(prompt, containers)) # agetic workflow
+
+        elif mode == 'Strands Graph':
+            response = asyncio.run(strands_graph.run_graph(prompt, containers))
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)
