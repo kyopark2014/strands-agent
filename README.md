@@ -390,7 +390,9 @@ if "event_loop_metrics" in event and \
 
 ### Supervisor
 
-[agent-as-tools](https://github.com/strands-agents/samples/tree/main/01-tutorials/02-multi-agent-systems/01-agent-as-tool)에 따라 collaborator들을 tool로 등록하는 방법으로 supervisor형태의 multi agent를 구현할 수 있습니다.
+[Agents as Tools](https://strandsagents.com/latest/user-guide/concepts/multi-agent/agents-as-tools/#implementing-agents-as-tools-with-strands-agents-sdk)와 같이 orchestrator agent를 이용해 research_assistant, product_recommendation_assistant, trip_planning_assistant와 같은 여러 agents를 이용할 수 있습니다. [agent-as-tools](https://github.com/strands-agents/samples/tree/main/01-tutorials/02-multi-agent-systems/01-agent-as-tool)와 같이 supervisor형태의 multi agent은 tool에 속한 agent을 이용해 구현할 수 있습니다.
+
+<img width="800" height="287" alt="image" src="https://github.com/user-attachments/assets/bf983b09-912d-456e-a774-1861fc873fba" />
 
 [strands_supervisor.py](./application/strands_supervisor.py)와 같이 먼저 strands agent의 tool로 agent를 정의합니다.
 
