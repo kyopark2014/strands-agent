@@ -10,6 +10,7 @@ import knowledge_base as kb
 import strands_agent
 import strands_supervisor
 import strands_swarm
+import strands_swarm_tool
 import strands_workflow
 import strands_graph
 
@@ -39,6 +40,9 @@ mode_descriptions = {
     "Strands Supervisor": [
         "Supervisor를 이용한 Multi-agent Collaboration입니다. 여기에서는 Supervisor/Collaborators의 구조를 가지고 있습니다."
     ],
+    "Strands Swarm": [
+        "Swarm 형태의 이용한 Multi-agent를 구현하기 위하여 agent들을 Collaboration형태로 구현합니다."
+    ],
     "Strands Swarm Tool": [
         "Swarm Tool을 이용한 Multi-agent Collaboration입니다. 여기에서는 Agent들이 서로 다른 답을 구한 다음에 summarize를 수행합니다. (Collaborative Mode)"
     ],
@@ -62,7 +66,7 @@ with st.sidebar:
     
     # radio selection
     mode = st.radio(
-        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)", "Strands Supervisor", "Strands Swarm Tool", "Strands Workflow", "Strands Graph"], index=0
+        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)", "Strands Supervisor", "Strands Swarm", "Strands Swarm Tool", "Strands Workflow", "Strands Graph"], index=0
     )   
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)
@@ -309,8 +313,11 @@ if prompt := st.chat_input("메시지를 입력하세요."):
         elif mode == 'Strands Supervisor':
             response = asyncio.run(strands_supervisor.run_agent(prompt, containers))
 
+        elif mode == 'Strands Swarm':
+            response = asyncio.run(strands_swarm.run_swarm(prompt, containers))
+
         elif mode == 'Strands Swarm Tool':
-            response = asyncio.run(strands_swarm.run_swarm_tool(prompt, containers))
+            response = asyncio.run(strands_swarm_tool.run_swarm_tool(prompt, containers))
 
         elif mode == 'Strands Workflow':
             #response = asyncio.run(strands_workflow.run_workflow_tool(prompt, containers)) # workflow tool

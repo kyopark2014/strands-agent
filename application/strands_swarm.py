@@ -6,10 +6,9 @@ import os
 import logging
 import sys
 import strands_agent
-import json
+import re
 
-from strands import Agent, tool
-from strands_tools import swarm
+from strands import Agent
 
 logging.basicConfig(
     level=logging.INFO,  
@@ -98,96 +97,194 @@ async def show_streams(agent_stream, containers):
     
     return result
 
+def isKorean(text):
+    # check korean
+    pattern_hangul = re.compile('[\u3131-\u3163\uac00-\ud7a3]+')
+    word_kor = pattern_hangul.search(str(text))
+    # print('word_kor: ', word_kor)
+
+    if word_kor and word_kor != 'None':
+        # logger.info(f"Korean: {word_kor}")
+        return True
+    else:
+        # logger.info(f"Not Korean:: {word_kor}")
+        return False
+    
 # supervisor agent
-async def run_swarm_tool(question, containers):
+async def run_swarm(question, containers):    
     global status_msg
     status_msg = []
 
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"(start"))    
 
-    system_prompt = (
-        "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
-        "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
-        "모르는 질문을 받으면 솔직히 모른다고 말합니다."
-    )
+    # Create specialized agents with different expertise
+    # research agent
+    if isKorean(question):
+        system_prompt = (
+            "당신은 정보 수집과 분석을 전문으로 하는 연구원입니다. "
+            "당신의 역할은 해당 주제에 대한 사실적 정보와 연구 통찰력을 제공하는 것입니다. "
+            "정확한 데이터를 제공하고 문제의 핵심적인 측면들을 파악하는 데 집중해야 합니다. "
+            "다른 에이전트로부터 입력을 받을 때, 그들의 정보가 당신의 연구와 일치하는지 평가하세요. "
+        )
+    else:
+        system_prompt = (
+            "You are a Research Agent specializing in gathering and analyzing information. "
+            "Your role in the swarm is to provide factual information and research insights on the topic. "
+            "You should focus on providing accurate data and identifying key aspects of the problem. "
+            "When receiving input from other agents, evaluate if their information aligns with your research. "
+        )
+    model = strands_agent.get_model()
+    research_agent = Agent(
+        model=model,
+        system_prompt=system_prompt, 
+        callback_handler=None)
 
-    agent = Agent(
-        model=strands_agent.get_model(),
+    # creative agent
+    if isKorean(question):
+        system_prompt = (
+            "당신은 혁신적인 솔루션 생성을 전문으로 하는 창의적 에이전트입니다. "
+            "당신의 역할은 틀에 박힌 사고에서 벗어나 창의적인 접근법을 제안하는 것입니다. "
+            "다른 에이전트들로부터 얻은 정보를 바탕으로 하되, 당신만의 독창적인 창의적 관점을 추가해야 합니다. "
+            "다른 사람들이 고려하지 않았을 수도 있는 참신한 접근법에 집중하세요. "
+        )
+    else:
+        system_prompt = (
+            "You are a Creative Agent specializing in generating innovative solutions. "
+            "Your role in the swarm is to think outside the box and propose creative approaches. "
+            "You should build upon information from other agents while adding your unique creative perspective. "
+            "Focus on novel approaches that others might not have considered. "
+        )
+    creative_agent = Agent(
+        model=model,
+        system_prompt=system_prompt, 
+        callback_handler=None)
+
+    # critical agent
+    if isKorean(question):
+        system_prompt = (
+            "당신은 제안서를 분석하고 결함을 찾는 것을 전문으로 하는 비판적 에이전트입니다. "
+            "당신의 역할은 다른 에이전트들이 제안한 해결책을 평가하고 잠재적인 문제점들을 식별하는 것입니다. "
+            "제안된 해결책을 신중히 검토하고, 약점이나 간과된 부분을 찾아내며, 개선 방안을 제시해야 합니다. "
+            "비판할 때는 건설적으로 하되, 최종 해결책이 견고하도록 보장하세요. "
+        )
+    else:
+        system_prompt = (
+            "You are a Critical Agent specializing in analyzing proposals and finding flaws. "
+            "Your role in the swarm is to evaluate solutions proposed by other agents and identify potential issues. "
+            "You should carefully examine proposed solutions, find weaknesses or oversights, and suggest improvements. "
+            "Be constructive in your criticism while ensuring the final solution is robust. "
+        )
+    critical_agent = Agent(
+        model=model,
+        system_prompt=system_prompt, 
+        callback_handler=None)
+
+    # summarizer agent
+    if isKorean(question):
+        system_prompt = (
+            "당신은 정보 종합을 전문으로 하는 요약 에이전트입니다. "
+            "당신의 역할은 모든 에이전트로부터 통찰력을 수집하고 응집력 있는 최종 해결책을 만드는 것입니다."
+            "최고의 아이디어들을 결합하고 비판점들을 다루어 포괄적인 답변을 만들어야 합니다. "
+            "원래 질문을 효과적으로 다루는 명확하고 실행 가능한 요약을 작성하는 데 집중하세요. "
+        )
+    else:
+        system_prompt = (
+            "You are a Summarizer Agent specializing in synthesizing information. "
+            "Your role in the swarm is to gather insights from all agents and create a cohesive final solution. "
+            "You should combine the best ideas and address the criticisms to create a comprehensive response. "
+            "Focus on creating a clear, actionable summary that addresses the original query effectively. "
+        )
+    summarizer_agent = Agent(
+        model=model,
         system_prompt=system_prompt,
-        tools=[swarm]
-    )
+        callback_handler=None)
 
-    result = agent.tool.swarm(
-        task=question,
-        swarm_size=2,
-        coordination_pattern="collaborative"
-    )    
-    logger.info(f"result of swarm: {result}")
+    # Dictionary to track messages between agents (mesh communication)
+    messages = {
+        "research": [],
+        "creative": [],
+        "critical": [],
+        "summarizer": []
+    }
 
-    if chat.debug_mode == 'Enable':
-        containers['status'].info(get_status_msg(f"end)"))
-
-    texts = []
-    for i, content in enumerate(result["content"]):
-        logger.info(f"content[{i}]: {content}")
-        if "text" in content:
-            texts.append(content["text"])
-
-    swarm_result = texts[-1]
-    logger.info(f"swarm_result: {swarm_result}")
+    # Phase 1: Initial analysis by each specialized agent
+    add_notification(containers, f"Phase 1: Initial analysis by each specialized agent")
+    add_notification(containers, f"research agent")
+    research_result = research_agent.stream_async(question)
+    research_result = await show_streams(research_result, containers)
+    logger.info(f"research_result: {research_result}")
     
-    messages = []
-    if "🌟 Collective Knowledge:" in swarm_result:
-        json_results = swarm_result.split("🌟 Collective Knowledge:")[1].strip()
-        logger.info(f"JSON results: {json_results}")
-        
-        try:
-            json_data = json.loads(json_results)
-            for json_result in json_data:
-                content_text = json_result["content"]
-                if "Metrics:" in content_text:
-                    content_text = content_text.split("Metrics:")[0].strip()
-                
-                content = json_result["agent_id"]+': '+content_text
-                logger.info(f"content: {content}")
-                add_notification(containers, content)
+    add_notification(containers, f"creative agent")
+    creative_result = creative_agent.stream_async(question)
+    creative_result = await show_streams(creative_result, containers)
 
-                messages.append(content)
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON 파싱 오류: {e}")
-            add_notification(containers, json_results)
-    else:
-        json_results = swarm_result
-        logger.info("🌟 Collective Knowledge: 패턴을 찾을 수 없습니다.")
+    add_notification(containers, f"critical agent")
+    critical_result = critical_agent.stream_async(question)
+    critical_result = await show_streams(critical_result, containers)
 
-    # summarizer agents
-    if chat.isKorean(question):
-        summarizer_prompt = f"""
-질문: <question>{question}</question>
+    # Share results with all other agents (mesh communication)    
+    messages["creative"].append(f"From Research Agent: {research_result}")
+    messages["critical"].append(f"From Research Agent: {research_result}")
+    messages["summarizer"].append(f"From Research Agent: {research_result}")
 
-아래 에이전트들의 생각을 종합하여 최종 답변을 생성하세요. 
-<opinion>{"\n\n".join(messages)}</opinion>
-"""
-    else:
-        summarizer_prompt = f"""
+    messages["research"].append(f"From Creative Agent: {creative_result}")
+    messages["critical"].append(f"From Creative Agent: {creative_result}")
+    messages["summarizer"].append(f"From Creative Agent: {creative_result}")
+
+    messages["research"].append(f"From Critical Agent: {critical_result}")
+    messages["creative"].append(f"From Critical Agent: {critical_result}")
+    messages["summarizer"].append(f"From Critical Agent: {critical_result}")
+
+    # Phase 2: Each agent refines based on input from others
+    research_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(messages["research"])
+    logger.info(f"research_prompt: {research_prompt}")
+    creative_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(messages["creative"])
+    # logger.info(f"creative_prompt: {creative_prompt}")
+    critical_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(messages["critical"])
+    # logger.info(f"critical_prompt: {critical_prompt}")
+
+    add_notification(containers, f"Phase 2: Each agent refines based on input from others")
+    add_notification(containers, f"refined research agent")
+    refined_research = research_agent.stream_async(research_prompt)
+    refined_research = await show_streams(refined_research, containers)
+    logger.info(f"refined_research: {refined_research}")
+
+    add_notification(containers, f"refined creative agent")
+    refined_creative = creative_agent.stream_async(creative_prompt)
+    refined_creative = await show_streams(refined_creative, containers)
+    logger.info(f"refined_creative: {refined_creative}")
+
+    add_notification(containers, f"refined critical agent")
+    refined_critical = critical_agent.stream_async(critical_prompt)
+    refined_critical = await show_streams(refined_critical, containers)
+    logger.info(f"refined_critical: {refined_critical}")
+
+    # Share refined results with summarizer
+    messages["summarizer"].append(f"From Research Agent (Phase 2): {refined_research}")
+    messages["summarizer"].append(f"From Creative Agent (Phase 2): {refined_creative}")
+    messages["summarizer"].append(f"From Critical Agent (Phase 2): {refined_critical}")
+
+    logger.info(f"summarized messages: {messages['summarizer']}")
+
+    # Final phase: Summarizer creates the final solution
+    summarizer_prompt = f"""
 Original query: {question}
 
 Please synthesize the following inputs from all agents into a comprehensive final solution:
 
-{"\n\n".join(messages)}
+{"\n\n".join(messages["summarizer"])}
 
 Create a well-structured final answer that incorporates the research findings, 
 creative ideas, and addresses the critical feedback.
 """
-    
-    model = strands_agent.get_model()
-    summarizer_agent = Agent(
-        model=model,
-        system_prompt=summarizer_prompt,
-    )    
-    agent_stream = summarizer_agent.stream_async(question)
-    result = await show_streams(agent_stream, containers)
-    logger.info(f"summarized result from swarm agents: {result}")
 
-    return result
+    add_notification(containers, f"summarizer agent")
+    final_solution = summarizer_agent.stream_async(summarizer_prompt)
+    final_solution = await show_streams(final_solution, containers)
+    logger.info(f"final_solution: {final_solution}")
+
+    if chat.debug_mode == 'Enable':
+        containers['status'].info(get_status_msg(f"end)"))
+
+    return final_solution
