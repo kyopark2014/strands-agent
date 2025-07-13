@@ -98,8 +98,57 @@ async def show_streams(agent_stream, containers):
     
     return result
 
+import strands_agent
+
+async def run_workflow(question, containers):
+    if chat.debug_mode == 'Enable':
+        containers['status'].info(get_status_msg(f"(start"))    
+
+    model = strands_agent.get_model()
+    researcher = Agent(
+        model=model,
+        system_prompt="research specialist. Find key information.", 
+        callback_handler=None
+    )
+    analyst = Agent(
+        model=model,
+        system_prompt="You analyze research data and extract insights. Analyze these research findings.", 
+        callback_handler=None
+    )
+    writer = Agent(
+        model=model, 
+        system_prompt="You create polished reports based on analysis. Create a report based on this analysis.",
+        callback_handler=None
+    )
+
+    # Step 1: Research
+    add_notification(containers, f"질문: {question}")
+    query = f"다음의 질문을 분석하세요. <question>{question}</question>"
+    research_stream = researcher.stream_async(query)
+    research_result = await show_streams(research_stream, containers)    
+    logger.info(f"research_results: {research_result}")
+
+    # Step 2: Analysis
+    add_notification(containers, f"분석: {research_result}")
+    analysis = f"다음을 분석해서 필요한 데이터를 추가하고 이해하기 쉽게 분석하세요. <research>{research_result}</research>"
+    analysis_stream = analyst.stream_async(analysis)
+    analysis_result = await show_streams(analysis_stream, containers)    
+    logger.info(f"analysis_results: {analysis_result}")
+
+    # Step 3: Report writing
+    add_notification(containers, f"보고서: {analysis_result}")
+    report = f"다음의 내용을 참조하여 상세한 보고서를 작성하세요. <subject>{analysis_result}</subject>"
+    report_stream = writer.stream_async(report)
+    report_result = await show_streams(report_stream, containers)    
+    logger.info(f"report_results: {report_result}")
+
+    if chat.debug_mode == 'Enable':
+        containers['status'].info(get_status_msg(f"end)"))
+
+    return report_result
+
 # supervisor agent
-async def run_agent(question, containers):
+async def run_workflow_tool(question, containers):
     global status_msg
     status_msg = []
 

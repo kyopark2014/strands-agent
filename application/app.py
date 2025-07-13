@@ -309,7 +309,8 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             response = asyncio.run(strands_swarm.run_swarm_tool(prompt, containers))
 
         elif mode == 'Strands Workflow':
-            response = asyncio.run(strands_workflow.run_agent(prompt, containers))
+            #response = asyncio.run(strands_workflow.run_workflow_tool(prompt, containers)) # workflow tool
+            response = asyncio.run(strands_workflow.run_workflow(prompt, containers)) # agetic workflow
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)
