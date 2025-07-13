@@ -512,6 +512,59 @@ async def run_workflow(question, containers):
     return report_result
 ```
 
+### Graph
+
+[Agent Graphs](https://strandsagents.com/latest/user-guide/concepts/multi-agent/graph/#implementing-agent-graphs-with-strands)와 같이 다단계로 된 복잡한 Graph를 구현할 수 있습니다. 이때의 agent들의 구성도는 아래와 같습니다.
+
+<img width="386" height="409" alt="image" src="https://github.com/user-attachments/assets/a6495615-8357-4ae6-8444-cf33ff714047" />
+
+[strands_graph.py](./application/strands_graph.py)와 같이 구현할 수 있습니다. 여기서 graph의 시작은 coordinator입니다. 이 agent는 economic_department, technical_analysis, social_analysis을 가지고 있습니다.
+
+```python
+coordinator = Agent(
+    system_prompt=COORDINATOR_SYSTEM_PROMPT,
+    tools=[economic_department, technical_analysis, social_analysis]
+)
+agent_stream = coordinator.stream_async(f"Provide a comprehensive analysis of: {question}")
+```
+
+여기서 economic_department는 아래와 같이 tool로 구현됩니다. 이 agent도 market_research, financial_analysis를 tool로 가지고 있습니다.
+
+```python
+@tool
+async def economic_department(query: str) -> str:
+    """Coordinate economic analysis across market and financial domains."""
+    logger.info("📈 Economic Department coordinating analysis...")
+
+    if isKorean(query):
+        system_prompt = (
+            "당신은 경제 부서 관리자입니다. 경제 분석을 조정하고 통합합니다."
+            "시장 관련 질문에는 market_research 도구를 사용하세요."
+            "경제적 질문에는 financial_analysis 도구를 사용하세요."
+            "결과를 통합하여 통합된 경제 관점을 제공하세요."
+            "중요: 질문이 명확하게 한 영역에 집중되지 않는 한 두 도구를 모두 사용하여 철저한 분석을 수행하세요."
+        )
+    else:
+        system_prompt = (
+            "You are an economic department manager who coordinates specialized economic analyses. "
+            "For market-related questions, use the market_research tool. "
+            "For financial questions, use the financial_analysis tool. "
+            "Synthesize the results into a cohesive economic perspective. "
+            "Important: Make sure to use both tools for comprehensive analysis unless the query is clearly focused on just one area."
+        )
+
+    econ_manager = Agent(
+        system_prompt=system_prompt,
+        tools=[market_research, financial_analysis],
+        callback_handler=None
+    )
+
+    agent_stream = econ_manager.stream_async(query)
+    result = await show_streams(agent_stream, containers)
+
+    return result
+```
+
 
 ## 설치하기
 
