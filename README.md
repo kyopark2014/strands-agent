@@ -464,6 +464,55 @@ result = agent.tool.swarm(
 logger.info(f"result of swarm: {result}")
 ```
 
+### Workflow
+
+[Agent Workflows](https://strandsagents.com/latest/user-guide/concepts/multi-agent/workflow/#implementing-workflow-architectures)을 이용하면 간단한 workflow를 손쉽게 구현할 수 있습니다.
+
+<img width="614" height="73" alt="image" src="https://github.com/user-attachments/assets/3473d42f-657a-4056-8eb7-ced1605916b8" />
+
+[strands_workflow.py](./application/strands_workflow.py)에서는 아래와 같이 researcher, analyst, writer를 통해 좀더 심화된 보고서를 생성할 수 있습니다.
+
+```python
+async def run_workflow(question, containers):
+    model = strands_agent.get_model()
+    researcher = Agent(
+        model=model,
+        system_prompt="research specialist. Find key information.", 
+        callback_handler=None
+    )
+    analyst = Agent(
+        model=model,
+        system_prompt="You analyze research data and extract insights. Analyze these research findings.", 
+        callback_handler=None
+    )
+    writer = Agent(
+        model=model, 
+        system_prompt="You create polished reports based on analysis. Create a report based on this analysis.",
+        callback_handler=None
+    )
+
+    # Step 1: Research
+    add_notification(containers, f"질문: {question}")
+    query = f"다음의 질문을 분석하세요. <question>{question}</question>"
+    research_stream = researcher.stream_async(query)
+    research_result = await show_streams(research_stream, containers)    
+
+    # Step 2: Analysis
+    add_notification(containers, f"분석: {research_result}")
+    analysis = f"다음을 분석해서 필요한 데이터를 추가하고 이해하기 쉽게 분석하세요. <research>{research_result}</research>"
+    analysis_stream = analyst.stream_async(analysis)
+    analysis_result = await show_streams(analysis_stream, containers)    
+
+    # Step 3: Report writing
+    add_notification(containers, f"보고서: {analysis_result}")
+    report = f"다음의 내용을 참조하여 상세한 보고서를 작성하세요. <subject>{analysis_result}</subject>"
+    report_stream = writer.stream_async(report)
+    report_result = await show_streams(report_stream, containers)    
+
+    return report_result
+```
+
+
 ## 설치하기
 
 Repository를 clone 합니다.
