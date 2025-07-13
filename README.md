@@ -394,7 +394,24 @@ if "event_loop_metrics" in event and \
 
 <img width="800" height="287" alt="image" src="https://github.com/user-attachments/assets/bf983b09-912d-456e-a774-1861fc873fba" />
 
-[strands_supervisor.py](./application/strands_supervisor.py)와 같이 먼저 strands agent의 tool로 agent를 정의합니다.
+[strands_supervisor.py](./application/strands_supervisor.py)와 같이 supervisor를 위한 orchestration agent를 생성할 수 있습니다. 이 agent는 research_assistant, product_recommendation_assistant, trip_planning_assistant의 agent로 만들어진 tool을 가지고 있습니다.
+
+```python
+orchestrator = Agent(
+    model=strands_agent.get_model(),
+    system_prompt=MAIN_SYSTEM_PROMPT,
+    tools=[
+        research_assistant,
+        product_recommendation_assistant,
+        trip_planning_assistant,
+        file_write,
+    ],
+)
+agent_stream = orchestrator.stream_async(question)
+result = await show_streams(agent_stream, containers)
+```
+
+여기서 trip_planning_assistant는 아래와 같이 travel_agent라는 agent를 가지고 있습니다.
 
 ```python
 @tool
@@ -415,23 +432,6 @@ async def trip_planning_assistant(query: str) -> str:
 
     return result
 ```
-
-이후 아래와 같이 supervisor를 위한 orchestration agent를 생성합니다.
-
-```python
-orchestrator = Agent(
-    model=strands_agent.get_model(),
-    system_prompt=MAIN_SYSTEM_PROMPT,
-    tools=[
-        research_assistant,
-        product_recommendation_assistant,
-        trip_planning_assistant,
-        file_write,
-    ],
-)
-agent_stream = orchestrator.stream_async(question)
-result = await show_streams(agent_stream, containers)
-```    
 
 
 ### Swarm
