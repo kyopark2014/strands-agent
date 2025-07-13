@@ -99,7 +99,7 @@ async def show_streams(agent_stream, containers):
     return result
 
 # supervisor agent
-async def run_agent(question, containers):
+async def run_swarm_tool(question, containers):
     global status_msg
     status_msg = []
 
@@ -125,15 +125,6 @@ async def run_agent(question, containers):
     )    
     logger.info(f"result of swarm: {result}")
 
-    agent.tool.swarm(
-        task=question,
-        swarm_size=2,
-        coordination_pattern="collaborative"
-    ) 
-
-    #agent_stream = agent.stream_async(question)
-    #result = await show_streams(agent_stream, containers)
-    
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"end)"))
 

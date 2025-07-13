@@ -6,6 +6,7 @@ import logging
 import sys
 import json
 import utils
+import boto3
 
 from urllib import parse
 from contextlib import contextmanager
@@ -17,6 +18,7 @@ from strands import Agent
 from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
 from botocore.config import Config
+from speak import speak
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
@@ -96,9 +98,7 @@ def get_model():
         retries=dict(max_attempts=3, mode="adaptive"),
     )
 
-    # 자격 증명이 있는 경우 Bedrock 클라이언트 생성
     if aws_access_key and aws_secret_key:
-        import boto3
         bedrock_client = boto3.client(
             'bedrock-runtime',
             region_name=aws_region,
@@ -108,8 +108,6 @@ def get_model():
             config=bedrock_config
         )
     else:
-        # 기본 자격 증명 사용
-        import boto3
         bedrock_client = boto3.client(
             'bedrock-runtime',
             region_name=aws_region,
@@ -258,13 +256,14 @@ def init_mcp_clients(mcp_servers: list):
         except Exception as e:
             logger.error(f"Failed to add MCP client for {name}: {e}")
             continue
-
+    
 def update_tools(strands_tools: list, mcp_servers: list):
     tools = []
     tool_map = {
         "calculator": calculator,
         "current_time": current_time,
-        "use_aws": use_aws
+        "use_aws": use_aws,
+        "speak": speak
         # "python_repl": python_repl  # Temporarily disabled
     }
 
@@ -576,6 +575,7 @@ async def initiate_agent(system_prompt, strands_tools, mcp_servers, historyMode)
     global references, image_url
     image_url = []    
     references = []    
+    tool_list = []
 
     global agent, initiated, update_required
     global selected_strands_tools, selected_mcp_servers
@@ -636,7 +636,7 @@ async def show_streams(agent_stream, containers):
                     tool_name = tool_use["name"]
                     input = tool_use["input"]
                     
-                    logger.info(f"tool_nmae: {tool_name}, arg: {input}")
+                    logger.info(f"tool_name: {tool_name}, arg: {input}")
                     if chat.debug_mode == 'Enable':       
                         add_notification(containers, f"tool name: {tool_name}, arg: {input}")
                         containers['status'].info(get_status_msg(f"{tool_name}"))
@@ -722,7 +722,7 @@ async def run_agent(question, strands_tools, mcp_servers, historyMode, container
     # initiate agent
     agent, tool_list = await initiate_agent(None, strands_tools, mcp_servers, historyMode)
     logger.info(f"tool_list: {tool_list}")    
-    if chat.debug_mode == 'Enable':
+    if chat.debug_mode == 'Enable' and tool_list:
         containers['tools'].info(f"tool_list: {tool_list}")
 
     # run agent
