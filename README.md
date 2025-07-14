@@ -445,12 +445,65 @@ async def trip_planning_assistant(query: str) -> str:
 <img width="700" alt="swarm" src="https://github.com/user-attachments/assets/b2d400b5-87f2-4a1a-9e28-877e107834c2" />
 
 
-이를 구현하는 방법은 [strands_swarm.py](./application/strands_swarm.py)을 참조합니다.
+이를 구현하는 방법은 [strands_swarm.py](./application/strands_swarm.py)을 참조합니다. 먼저 질문을 research, creative, critical agent에 전달해 답변을 구하고, 결과를 다른 agent들에 전달합니다.
 
 ```python
-To-Do:
+result = research_agent.stream_async(question)
+research_result = await show_streams(result, containers)
+
+result = creative_agent.stream_async(question)
+creative_result = await show_streams(result, containers)
+
+result = critical_agent.stream_async(question)
+critical_result = await show_streams(result, containers)
+
+creative_messages.append(f"From Research Agent: {research_result}")
+critical_messages.append(f"From Research Agent: {research_result}")
+summarizer_messages.append(f"From Research Agent: {research_result}")
+
+research_messages.append(f"From Creative Agent: {creative_result}")
+critical_messages.append(f"From Creative Agent: {creative_result}")
+summarizer_messages.append(f"From Creative Agent: {creative_result}")
+
+research_messages.append(f"From Critical Agent: {critical_result}")
+creative_messages.append(f"From Critical Agent: {critical_result}")
+summarizer_messages.append(f"From Critical Agent: {critical_result}")
 ```
 
+결과를 refine하고 얻어진 결과를 summarizer agent에 전달합니다.
+
+```python
+result = research_agent.stream_async(research_prompt)
+refined_research = await show_streams(result, containers)
+
+result = creative_agent.stream_async(creative_prompt)
+refined_creative = await show_streams(result, containers)
+
+result = critical_agent.stream_async(critical_prompt)
+refined_critical = await show_streams(result, containers)
+
+summarizer_messages.append(f"From Research Agent (Phase 2): {refined_research}")
+summarizer_messages.append(f"From Creative Agent (Phase 2): {refined_creative}")
+summarizer_messages.append(f"From Critical Agent (Phase 2): {refined_critical}")
+```
+
+이후 아래와 같이 요약합니다.
+
+```python
+summarizer_prompt = f"""
+Original query: {question}
+
+Please synthesize the following inputs from all agents into a comprehensive final solution:
+
+{"\n\n".join(summarizer_messages)}
+
+Create a well-structured final answer that incorporates the research findings, 
+creative ideas, and addresses the critical feedback.
+"""
+
+result = summarizer_agent.stream_async(summarizer_prompt)
+final_solution = await show_streams(result, containers)
+```
 
 #### Swarm Tool
 
@@ -464,7 +517,7 @@ To-Do:
 
 <img width="600" alt="swarm_tool" src="https://github.com/user-attachments/assets/fd9b69f4-3d85-4dae-ab7f-347ef207f862" />
 
-[strands_swarm.py](./application/strands_swarm.py)와 같이 strands agent를 이용해 swarm 형태의 multi agent를 구현하고, 이를 통해 복잡한 문제를 풀 수 있습니다.
+[strands_swarm_tool.py](./application/strands_swarm_tool.py)와 같이 strands agent를 이용해 swarm 형태의 multi agent를 구현하고, 이를 통해 복잡한 문제를 풀 수 있습니다.
 
 ```python
 from strands_tools import swarm
