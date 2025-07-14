@@ -110,7 +110,7 @@ def isKorean(text):
         # logger.info(f"Not Korean:: {word_kor}")
         return False
     
-# supervisor agent
+# swarm agent
 async def run_swarm(question, containers):    
     global status_msg
     status_msg = []
