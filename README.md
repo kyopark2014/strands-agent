@@ -436,7 +436,11 @@ async def trip_planning_assistant(query: str) -> str:
 
 ### Swarm
 
-[Multi-Agent Systems and Swarm Intelligence](https://strandsagents.com/latest/user-guide/concepts/multi-agent/swarm/)와 같이 Agent들이 서로 협조하면서 복잡한 문제를 해결 할 수 있습니다. [Mesh Swarm Architecture](https://strandsagents.com/latest/user-guide/concepts/multi-agent/swarm/#mesh-swarm-architecture)와 같이 여러 agent들간의 협업을 수행하 수 있습니다. 
+[Multi-Agent Systems and Swarm Intelligence](https://strandsagents.com/latest/user-guide/concepts/multi-agent/swarm/)와 같이 Agent들이 서로 협조하면서 복잡한 문제를 해결 할 수 있습니다. 
+
+#### Mesh Swarm
+
+[Mesh Swarm Architecture](https://strandsagents.com/latest/user-guide/concepts/multi-agent/swarm/#mesh-swarm-architecture)와 같이 여러 agent들간의 협업을 수행하 수 있습니다. 
 
 <img width="700" alt="swarm" src="https://github.com/user-attachments/assets/b2d400b5-87f2-4a1a-9e28-877e107834c2" />
 
@@ -448,7 +452,9 @@ To-Do:
 ```
 
 
-또한, [Creating Swarm of agents using Strands Agents](https://github.com/strands-agents/samples/blob/main/01-tutorials/02-multi-agent-systems/02-swarm-agent/swarm.ipynb)에서 strands agent에서 swarm을 사용할 수 있도록 tool을 제공하고 있습니다. 이때 agent에서 설정할 수 있는 협업 옵션은 아래와 같습니다.
+#### Swarm Tool
+
+[Creating Swarm of agents using Strands Agents](https://github.com/strands-agents/samples/blob/main/01-tutorials/02-multi-agent-systems/02-swarm-agent/swarm.ipynb)에서 strands agent에서 swarm을 사용할 수 있도록 tool을 제공하고 있습니다. 이때 agent에서 설정할 수 있는 협업 옵션은 아래와 같습니다.
 
 - Collaborative: Agents build upon others' insights and seek consensus
 - Competitive: Agents develop independent solutions and unique perspectives
