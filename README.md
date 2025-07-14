@@ -488,6 +488,26 @@ result = agent.tool.swarm(
 logger.info(f"result of swarm: {result}")
 ```
 
+Swarm tool로 얻어진 결과는 아래와 같이 summarize agent로 요약합니다.
+
+```python
+summarizer_prompt = f"""
+질문: <question>{question}</question>
+
+아래 에이전트들의 생각을 종합하여 최종 답변을 생성하세요. 
+<opinion>{"\n\n".join(messages)}</opinion>
+"""    
+
+model = strands_agent.get_model()
+summarizer_agent = Agent(
+    model=model,
+    system_prompt=summarizer_prompt,
+)    
+agent_stream = summarizer_agent.stream_async(question)
+result = await show_streams(agent_stream, containers)
+```
+
+
 ### Workflow
 
 [Agent Workflows](https://strandsagents.com/latest/user-guide/concepts/multi-agent/workflow/#implementing-workflow-architectures)을 이용하면 간단한 workflow를 손쉽게 구현할 수 있습니다.
