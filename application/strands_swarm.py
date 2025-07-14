@@ -140,7 +140,7 @@ async def run_swarm(question, containers):
         system_prompt=system_prompt, 
         callback_handler=None)
 
-    # creative agent
+    # Creative Agent
     if isKorean(question):
         system_prompt = (
             "당신은 혁신적인 솔루션 생성을 전문으로 하는 창의적 에이전트입니다. "
@@ -160,7 +160,7 @@ async def run_swarm(question, containers):
         system_prompt=system_prompt, 
         callback_handler=None)
 
-    # critical agent
+    # Critical Agent
     if isKorean(question):
         system_prompt = (
             "당신은 제안서를 분석하고 결함을 찾는 것을 전문으로 하는 비판적 에이전트입니다. "
@@ -201,71 +201,67 @@ async def run_swarm(question, containers):
         callback_handler=None)
 
     # Dictionary to track messages between agents (mesh communication)
-    messages = {
-        "research": [],
-        "creative": [],
-        "critical": [],
-        "summarizer": []
-    }
-
+    research_messages = []
+    creative_messages = []
+    critical_messages = []
+    summarizer_messages = []
+    
     # Phase 1: Initial analysis by each specialized agent
     add_notification(containers, f"Phase 1: Initial analysis by each specialized agent")
     add_notification(containers, f"research agent")
-    research_result = research_agent.stream_async(question)
-    research_result = await show_streams(research_result, containers)
+    result = research_agent.stream_async(question)
+    research_result = await show_streams(result, containers)
     logger.info(f"research_result: {research_result}")
     
     add_notification(containers, f"creative agent")
-    creative_result = creative_agent.stream_async(question)
-    creative_result = await show_streams(creative_result, containers)
+    result = creative_agent.stream_async(question)
+    creative_result = await show_streams(result, containers)
 
     add_notification(containers, f"critical agent")
-    critical_result = critical_agent.stream_async(question)
-    critical_result = await show_streams(critical_result, containers)
+    result = critical_agent.stream_async(question)
+    critical_result = await show_streams(result, containers)
 
     # Share results with all other agents (mesh communication)    
-    messages["creative"].append(f"From Research Agent: {research_result}")
-    messages["critical"].append(f"From Research Agent: {research_result}")
-    messages["summarizer"].append(f"From Research Agent: {research_result}")
+    creative_messages.append(f"From Research Agent: {research_result}")
+    critical_messages.append(f"From Research Agent: {research_result}")
+    summarizer_messages.append(f"From Research Agent: {research_result}")
 
-    messages["research"].append(f"From Creative Agent: {creative_result}")
-    messages["critical"].append(f"From Creative Agent: {creative_result}")
-    messages["summarizer"].append(f"From Creative Agent: {creative_result}")
+    research_messages.append(f"From Creative Agent: {creative_result}")
+    critical_messages.append(f"From Creative Agent: {creative_result}")
+    summarizer_messages.append(f"From Creative Agent: {creative_result}")
 
-    messages["research"].append(f"From Critical Agent: {critical_result}")
-    messages["creative"].append(f"From Critical Agent: {critical_result}")
-    messages["summarizer"].append(f"From Critical Agent: {critical_result}")
+    research_messages.append(f"From Critical Agent: {critical_result}")
+    creative_messages.append(f"From Critical Agent: {critical_result}")
+    summarizer_messages.append(f"From Critical Agent: {critical_result}")
 
     # Phase 2: Each agent refines based on input from others
-    research_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(messages["research"])
+    research_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(research_messages)
     logger.info(f"research_prompt: {research_prompt}")
-    creative_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(messages["creative"])
+    creative_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(creative_messages)
     # logger.info(f"creative_prompt: {creative_prompt}")
-    critical_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(messages["critical"])
+    critical_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(critical_messages)
     # logger.info(f"critical_prompt: {critical_prompt}")
 
     add_notification(containers, f"Phase 2: Each agent refines based on input from others")
     add_notification(containers, f"refined research agent")
-    refined_research = research_agent.stream_async(research_prompt)
-    refined_research = await show_streams(refined_research, containers)
+    result = research_agent.stream_async(research_prompt)
+    refined_research = await show_streams(result, containers)
     logger.info(f"refined_research: {refined_research}")
 
     add_notification(containers, f"refined creative agent")
-    refined_creative = creative_agent.stream_async(creative_prompt)
-    refined_creative = await show_streams(refined_creative, containers)
-    logger.info(f"refined_creative: {refined_creative}")
+    result = creative_agent.stream_async(creative_prompt)
+    refined_creative = await show_streams(result, containers)
 
     add_notification(containers, f"refined critical agent")
-    refined_critical = critical_agent.stream_async(critical_prompt)
-    refined_critical = await show_streams(refined_critical, containers)
-    logger.info(f"refined_critical: {refined_critical}")
+    result = critical_agent.stream_async(critical_prompt)
+    refined_critical = await show_streams(result, containers)
 
     # Share refined results with summarizer
-    messages["summarizer"].append(f"From Research Agent (Phase 2): {refined_research}")
-    messages["summarizer"].append(f"From Creative Agent (Phase 2): {refined_creative}")
-    messages["summarizer"].append(f"From Critical Agent (Phase 2): {refined_critical}")
+    summarizer_messages.append(f"From Research Agent (Phase 2): {refined_research}")
+    summarizer_messages.append(f"From Creative Agent (Phase 2): {refined_creative}")
+    summarizer_messages.append(f"From Critical Agent (Phase 2): {refined_critical}")
 
-    logger.info(f"summarized messages: {messages['summarizer']}")
+    logger.info(f"summarized messages: {summarizer_messages}")
 
     # Final phase: Summarizer creates the final solution
     summarizer_prompt = f"""
@@ -273,15 +269,15 @@ Original query: {question}
 
 Please synthesize the following inputs from all agents into a comprehensive final solution:
 
-{"\n\n".join(messages["summarizer"])}
+{"\n\n".join(summarizer_messages)}
 
 Create a well-structured final answer that incorporates the research findings, 
 creative ideas, and addresses the critical feedback.
 """
 
     add_notification(containers, f"summarizer agent")
-    final_solution = summarizer_agent.stream_async(summarizer_prompt)
-    final_solution = await show_streams(final_solution, containers)
+    result = summarizer_agent.stream_async(summarizer_prompt)
+    final_solution = await show_streams(result, containers)
     logger.info(f"final_solution: {final_solution}")
 
     if chat.debug_mode == 'Enable':
