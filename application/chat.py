@@ -54,6 +54,11 @@ grading_mode = 'Disable'
 multi_region = "Disable"
 grading_mode = 'Disable'
 
+aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
+aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
+
 def update(modelName, reasoningMode, debugMode, multiRegion, gradingMode):    
     global model_name, model_id, model_type, reasoning_mode, debug_mode, multi_region, grading_mode
 
@@ -89,7 +94,90 @@ def update(modelName, reasoningMode, debugMode, multiRegion, gradingMode):
     utils.save_mcp_env(mcp_env)
     logger.info(f"mcp.env updated: {mcp_env}")
 
+def create_object(key, body):
+    """
+    Create an object in S3 and return the URL. If the file already exists, append the new content.
+    """
+    
+    # Content-Type based on file extension
+    content_type = 'application/octet-stream'  # default value
+    if key.endswith('.html'):
+        content_type = 'text/html'
+    elif key.endswith('.md'):
+        content_type = 'text/markdown'
+    
+    if aws_access_key and aws_secret_key:
+        s3_client = boto3.client(
+            service_name='s3',
+            region_name=bedrock_region,
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            aws_session_token=aws_session_token,
+        )
+    else:
+        s3_client = boto3.client(
+            service_name='s3',
+            region_name=bedrock_region,
+        )
+        
+    s3_client.put_object(
+        Bucket=s3_bucket,
+        Key=key,
+        Body=body,
+        ContentType=content_type
+    )  
 
+def updata_object(key, body, direction):
+    """
+    Create an object in S3 and return the URL. If the file already exists, append the new content.
+    """
+    if aws_access_key and aws_secret_key:
+        s3_client = boto3.client(
+            service_name='s3',
+            region_name=bedrock_region,
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            aws_session_token=aws_session_token,
+        )
+    else:
+        s3_client = boto3.client(
+            service_name='s3',
+            region_name=bedrock_region,
+        )
+
+    try:
+        # Check if file exists
+        try:
+            response = s3_client.get_object(Bucket=s3_bucket, Key=key)
+            existing_body = response['Body'].read().decode('utf-8')
+            # Append new content to existing content
+
+            if direction == 'append':
+                updated_body = existing_body + '\n' + body
+            else: # prepend
+                updated_body = body + '\n' + existing_body
+        except s3_client.exceptions.NoSuchKey:
+            # File doesn't exist, use new body as is
+            updated_body = body
+            
+        # Content-Type based on file extension
+        content_type = 'application/octet-stream'  # default value
+        if key.endswith('.html'):
+            content_type = 'text/html'
+        elif key.endswith('.md'):
+            content_type = 'text/markdown'
+            
+        # Upload the updated content
+        s3_client.put_object(
+            Bucket=s3_bucket,
+            Key=key,
+            Body=updated_body,
+            ContentType=content_type
+        )
+        
+    except Exception as e:
+        logger.error(f"Error updating object in S3: {str(e)}")
+        raise e
     
 def traslation(chat, text, input_language, output_language):
     system = (
@@ -476,3 +564,48 @@ def upload_to_s3(file_bytes, file_name):
         logger.info(f"{err_msg}")
         return None
 
+def upload_to_s3_artifacts(file_bytes, file_name):
+    """
+    Upload a file to S3 and return the URL
+    """
+    try:
+        if aws_access_key and aws_secret_key:
+            s3_client = boto3.client(
+                service_name='s3',
+                region_name=bedrock_region,
+                aws_access_key_id=aws_access_key,
+                aws_secret_access_key=aws_secret_key,
+                aws_session_token=aws_session_token
+            )
+        else:
+            s3_client = boto3.client(
+                service_name='s3',
+                region_name=bedrock_region
+        )
+
+        content_type = utils.get_contents_type(file_name)       
+        logger.info(f"content_type: {content_type}") 
+
+        s3_key = f"artifacts/{file_name}"
+        
+        user_meta = {  # user-defined metadata
+            "content_type": content_type,
+            "model_name": model_name
+        }
+        
+        response = s3_client.put_object(
+            Bucket=s3_bucket, 
+            Key=s3_key, 
+            ContentType=content_type,
+            Metadata = user_meta,
+            Body=file_bytes            
+        )
+        logger.info(f"upload response: {response}")
+
+        url = path+'/artifacts/'+parse.quote(file_name)
+        return url
+    
+    except Exception as e:
+        err_msg = f"Error uploading to S3: {str(e)}"
+        logger.info(f"{err_msg}")
+        return None

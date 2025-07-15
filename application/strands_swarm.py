@@ -7,8 +7,13 @@ import logging
 import sys
 import strands_agent
 import re
+import random
+import string
+import trans
+import utils
 
 from strands import Agent
+from datetime import datetime
 
 logging.basicConfig(
     level=logging.INFO,  
@@ -43,6 +48,92 @@ def get_status_msg(status):
         return "[status]\n" + status    
 
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
+
+def initiate_report(question, containers):
+    # request id
+    request_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    template = open(os.path.join(os.path.dirname(__file__), f"swarm_report.html")).read()
+    template = template.replace("{request_id}", request_id)
+    template = template.replace("{sharing_url}", chat.path)
+    key = f"artifacts/{request_id}.html"
+    chat.create_object(key, template)
+
+    report_url = chat.path + "/artifacts/" + request_id + ".html"
+    logger.info(f"report_url: {report_url}")
+    add_response(containers, f"report_url: {report_url}")
+
+    # upload diagram to s3
+    random_id = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
+    image_filename = f'workflow_{random_id}.png'
+
+    # load an image file, contents/swarm.png
+    image_file = open(os.path.join(os.path.dirname(__file__), f"../contents/swarm.png"), "rb")
+    image_bytes = image_file.read()
+    url = chat.upload_to_s3(image_bytes, image_filename)
+    logger.info(f"url: {url}")
+
+    # add plan to report    
+    key = f"artifacts/{request_id}_plan.md"
+    body = f"## 주제: {question}\n\n"
+    chat.updata_object(key, body, 'append') # prepend or append
+
+    key = f"artifacts/{request_id}_plan.md"
+    task = "Multi-Agent 동작 방식 (SWARM)"
+    output_images = f"<img src='{url}' width='800'>\n\n"
+    body = f"## {task}\n\n{output_images}"
+    chat.updata_object(key, body, 'append') # prepend or append
+
+    return request_id, report_url
+
+def update_report(type, request_id, result):
+    key = f"artifacts/{request_id}_{type}.md"
+    time = f"## {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    chat.updata_object(key, time + result, 'append')
+
+async def create_final_report(request_id, question, body, report_url):
+    urls = []
+    if report_url:
+        urls.append(report_url)
+
+    # report.html
+    logger.info(f"body: {body}")
+    logger.info(f"body type: {type(body)}")
+    logger.info(f"body length: {len(body) if body else 0}")
+    
+    if not body:
+        logger.error("body is empty or None")
+        body = "## 결과\n\n내용이 없습니다."
+    
+    output_html = trans.trans_md_to_html(body, question)
+    logger.info(f"output_html: {output_html}")
+    chat.create_object(f"artifacts/{request_id}_report.html", output_html)
+
+    logger.info(f"url of html: {chat.path}/artifacts/{request_id}_report.html")
+    urls.append(f"{chat.path}/artifacts/{request_id}_report.html")
+
+    output = await utils.generate_pdf_report(body, request_id)
+    logger.info(f"result of generate_pdf_report: {output}")
+    if output: # reports/request_id.pdf         
+        pdf_filename = f"artifacts/{request_id}.pdf"
+        with open(pdf_filename, 'rb') as f:
+            pdf_bytes = f.read()
+            chat.upload_to_s3_artifacts(pdf_bytes, f"{request_id}.pdf")
+        logger.info(f"url of pdf: {chat.path}/artifacts/{request_id}.pdf")
+    
+    urls.append(f"{chat.path}/artifacts/{request_id}.pdf")
+
+    # report.md
+    key = f"artifacts/{request_id}_report.md"
+    time = f"# {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"    
+    final_result = body + "\n\n" + f"## 최종 결과\n\n"+'\n\n'.join(urls)    
+    chat.create_object(key, time + final_result)
+
+    # add Link to report    
+    key = f"artifacts/{request_id}_plan.md"
+    body = f"## Final Report\n\n{'\n\n'.join(urls)}\n\n"
+    chat.updata_object(key, body, 'append') # prepend or append
+    
+    return urls
 
 async def show_streams(agent_stream, containers):
     tool_name = ""
@@ -117,6 +208,8 @@ async def run_swarm(question, containers):
 
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"(start"))    
+
+    request_id, report_url = initiate_report(question, containers)
 
     # Create specialized agents with different expertise
     # research agent
@@ -212,14 +305,17 @@ async def run_swarm(question, containers):
     result = research_agent.stream_async(question)
     research_result = await show_streams(result, containers)
     logger.info(f"research_result: {research_result}")
+    update_report("research", request_id, research_result)
     
     add_notification(containers, f"creative agent")
     result = creative_agent.stream_async(question)
     creative_result = await show_streams(result, containers)
+    update_report("creative", request_id, creative_result)
 
     add_notification(containers, f"critical agent")
     result = critical_agent.stream_async(question)
     critical_result = await show_streams(result, containers)
+    update_report("critical", request_id, critical_result)
 
     # Share results with all other agents (mesh communication)    
     creative_messages.append(f"From Research Agent: {research_result}")
@@ -235,26 +331,29 @@ async def run_swarm(question, containers):
     summarizer_messages.append(f"From Critical Agent: {critical_result}")
 
     # Phase 2: Each agent refines based on input from others
-    research_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(research_messages)
-    logger.info(f"research_prompt: {research_prompt}")
-    creative_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(creative_messages)
-    # logger.info(f"creative_prompt: {creative_prompt}")
-    critical_prompt = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(critical_messages)
-    # logger.info(f"critical_prompt: {critical_prompt}")
+    next_research_message = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(research_messages)
+    logger.info(f"next_research_message: {next_research_message}")
+    next_creative_message = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(creative_messages)
+    # logger.info(f"next_creative_message: {next_creative_message}")
+    next_critical_message = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(critical_messages)
+    # logger.info(f"next_critical_message: {next_critical_message}")
 
     add_notification(containers, f"Phase 2: Each agent refines based on input from others")
     add_notification(containers, f"refined research agent")
-    result = research_agent.stream_async(research_prompt)
+    result = research_agent.stream_async(next_research_message)
     refined_research = await show_streams(result, containers)
     logger.info(f"refined_research: {refined_research}")
+    update_report("research", request_id, refined_research)
 
     add_notification(containers, f"refined creative agent")
-    result = creative_agent.stream_async(creative_prompt)
+    result = creative_agent.stream_async(next_creative_message)
     refined_creative = await show_streams(result, containers)
+    update_report("creative", request_id, refined_creative)
 
     add_notification(containers, f"refined critical agent")
-    result = critical_agent.stream_async(critical_prompt)
+    result = critical_agent.stream_async(next_critical_message)
     refined_critical = await show_streams(result, containers)
+    update_report("critical", request_id, refined_critical)
 
     # Share refined results with summarizer
     summarizer_messages.append(f"From Research Agent (Phase 2): {refined_research}")
@@ -264,7 +363,7 @@ async def run_swarm(question, containers):
     logger.info(f"summarized messages: {summarizer_messages}")
 
     # Final phase: Summarizer creates the final solution
-    summarizer_prompt = f"""
+    next_summarizer_message = f"""
 Original query: {question}
 
 Please synthesize the following inputs from all agents into a comprehensive final solution:
@@ -276,11 +375,15 @@ creative ideas, and addresses the critical feedback.
 """
 
     add_notification(containers, f"summarizer agent")
-    result = summarizer_agent.stream_async(summarizer_prompt)
+    result = summarizer_agent.stream_async(next_summarizer_message)
     final_solution = await show_streams(result, containers)
     logger.info(f"final_solution: {final_solution}")
+    update_report("summarizer", request_id, final_solution)
+
+    urls = await create_final_report(request_id, question, final_solution, report_url)
+    logger.info(f"urls: {urls}")
 
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"end)"))
 
-    return final_solution
+    return final_solution, urls
