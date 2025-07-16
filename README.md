@@ -440,7 +440,7 @@ async def trip_planning_assistant(query: str) -> str:
 
 #### Mesh Swarm
 
-[Mesh Swarm Architecture](https://strandsagents.com/latest/user-guide/concepts/multi-agent/swarm/#mesh-swarm-architecture)와 같이 여러 agent들간의 협업을 수행하 수 있습니다. Research Agent는 논리적인 답변을, Creative Agent는 흥미로운 답변을 제공합니다. 이때, Critical Agent로 두 Agent들의 개선점을 도출한 후에, Summarize Agent로 최적의 답변을 구할 수 있습니다.
+[Mesh Swarm Architecture](https://strandsagents.com/latest/user-guide/concepts/multi-agent/swarm/#mesh-swarm-architecture)와 같이 여러 agent들간의 협업을 수행하 수 있습니다. Research agent는 논리적인 답변을, creative agent는 흥미로운 답변을 제공합니다. 이때, critical agent로 두 agent들의 개선점을 도출한 후에, summarize Agent로 최적의 답변을 구할 수 있습니다.
 
 <img width="700" alt="swarm" src="https://github.com/user-attachments/assets/b2d400b5-87f2-4a1a-9e28-877e107834c2" />
 
