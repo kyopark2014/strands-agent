@@ -314,7 +314,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             response = asyncio.run(strands_supervisor.run_agent(prompt, containers))
 
         elif mode == 'Strands Swarm':
-            response, urls = asyncio.run(strands_swarm.run_swarm(prompt, containers))
+            response, urls = asyncio.run(strands_swarm.run_swarm(prompt, selected_strands_tools, selected_mcp_servers, containers))
 
             if urls:
                 with st.expander(f"최종 결과"):

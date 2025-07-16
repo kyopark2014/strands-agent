@@ -134,7 +134,7 @@ async def create_final_report(request_id, question, body, report_url):
     
     return urls
 
-async def show_streams(agent_stream, containers, debug_mode):
+async def show_streams(agent_stream, containers):
     tool_name = ""
     result = ""
     current_response = ""
@@ -148,7 +148,7 @@ async def show_streams(agent_stream, containers, debug_mode):
             for content in message["content"]:                
                 if "text" in content:
                     logger.info(f"text: {content['text']}")
-                    if debug_mode is not 'Demo':
+                    if chat.debug_mode == 'Enable':
                         add_response(containers, content['text'])
 
                     result = content['text']
@@ -162,7 +162,7 @@ async def show_streams(agent_stream, containers, debug_mode):
                     input = tool_use["input"]
                     
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
-                    if debug_mode == 'Enable':       
+                    if chat.debug_mode == 'Enable':       
                         add_notification(containers, f"tool name: {tool_name}, arg: {input}")
                         containers['status'].info(get_status_msg(f"{tool_name}"))
             
@@ -174,14 +174,14 @@ async def show_streams(agent_stream, containers, debug_mode):
                         tool_content = tool_result['content']
                         for content in tool_content:
                             if "text" in content:
-                                if debug_mode == 'Enable':
+                                if chat.debug_mode == 'Enable':
                                     add_notification(containers, f"tool result: {content['text']}")
 
         if "data" in event:
             text_data = event["data"]
             current_response += text_data
 
-            if debug_mode == 'Enable':
+            if chat.debug_mode == 'Enable':
                 containers["notification"][index].markdown(current_response)
             continue
     
@@ -201,7 +201,7 @@ def isKorean(text):
         return False
     
 # swarm agent
-async def run_swarm(question, selected_strands_tools, selected_mcp_servers, containers):    
+async def run_swarm(question, containers):    
     global status_msg
     status_msg = []
 
@@ -209,14 +209,6 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
         containers['status'].info(get_status_msg(f"(start"))    
 
     request_id, report_url = initiate_report(question, containers)
-
-    strands_agent.init_mcp_clients(selected_mcp_servers)
-    tools = strands_agent.update_tools(selected_strands_tools, selected_mcp_servers)
-    logger.info(f"tools: {tools}")
-    tool_list = strands_agent.get_tool_list(tools)
-    logger.info(f"tool_list: {tool_list}")
-    if chat.debug_mode == 'Enable' and tool_list:
-        containers['tools'].info(f"tool_list: {tool_list}")
 
     # Create specialized agents with different expertise
     # research agent
@@ -238,8 +230,7 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
     research_agent = Agent(
         model=model,
         system_prompt=system_prompt, 
-        tools=tools
-    )
+        callback_handler=None)
 
     # Creative Agent
     if isKorean(question):
@@ -259,8 +250,7 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
     creative_agent = Agent(
         model=model,
         system_prompt=system_prompt, 
-        tools=tools
-    )
+        callback_handler=None)
 
     # Critical Agent
     if isKorean(question):
@@ -280,8 +270,7 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
     critical_agent = Agent(
         model=model,
         system_prompt=system_prompt, 
-        tools=tools
-    )
+        callback_handler=None)
 
     # summarizer agent
     if isKorean(question):
@@ -312,33 +301,21 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
     # Phase 1: Initial analysis by each specialized agent
     add_notification(containers, f"Phase 1: Initial analysis by each specialized agent")
     add_notification(containers, f"research agent")
-
-    debug_mode = chat.debug_mode # Enable, Disable, Demo
-    with strands_agent.mcp_manager.get_active_clients(selected_mcp_servers) as _:
-        result = research_agent.stream_async(question)
-        research_result = await show_streams(result, containers, debug_mode)
-        logger.info(f"research_result: {research_result}")
-        update_report("research", request_id, research_result)
-
-        if debug_mode == 'Demo':
-            add_response(containers, research_result)
+    result = research_agent.stream_async(question)
+    research_result = await show_streams(result, containers)
+    logger.info(f"research_result: {research_result}")
+    update_report("research", request_id, research_result)
     
-        add_notification(containers, f"creative agent")
-        result = creative_agent.stream_async(question)
-        creative_result = await show_streams(result, containers, debug_mode)
-        update_report("creative", request_id, creative_result)
+    add_notification(containers, f"creative agent")
+    result = creative_agent.stream_async(question)
+    creative_result = await show_streams(result, containers)
+    update_report("creative", request_id, creative_result)
 
-        if debug_mode == 'Demo':
-            add_response(containers, creative_result)
-    
-        add_notification(containers, f"critical agent")
-        result = critical_agent.stream_async(question)
-        critical_result = await show_streams(result, containers, debug_mode)
-        update_report("critical", request_id, critical_result)
+    add_notification(containers, f"critical agent")
+    result = critical_agent.stream_async(question)
+    critical_result = await show_streams(result, containers)
+    update_report("critical", request_id, critical_result)
 
-        if debug_mode == 'Demo':
-            add_response(containers, critical_result)
-    
     # Share results with all other agents (mesh communication)    
     creative_messages.append(f"From Research Agent: {research_result}")
     critical_messages.append(f"From Research Agent: {research_result}")
@@ -362,31 +339,21 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
 
     add_notification(containers, f"Phase 2: Each agent refines based on input from others")
     add_notification(containers, f"refined research agent")
-    with strands_agent.mcp_manager.get_active_clients(selected_mcp_servers) as _:
-        result = research_agent.stream_async(next_research_message)
-        refined_research = await show_streams(result, containers, debug_mode)
-        logger.info(f"refined_research: {refined_research}")
-        update_report("research", request_id, refined_research)
+    result = research_agent.stream_async(next_research_message)
+    refined_research = await show_streams(result, containers)
+    logger.info(f"refined_research: {refined_research}")
+    update_report("research", request_id, refined_research)
 
-        if debug_mode == 'Demo':
-            add_response(containers, refined_research)
-    
-        add_notification(containers, f"refined creative agent")
-        result = creative_agent.stream_async(next_creative_message)
-        refined_creative = await show_streams(result, containers, debug_mode)
-        update_report("creative", request_id, refined_creative)
+    add_notification(containers, f"refined creative agent")
+    result = creative_agent.stream_async(next_creative_message)
+    refined_creative = await show_streams(result, containers)
+    update_report("creative", request_id, refined_creative)
 
-        if debug_mode == 'Demo':
-            add_response(containers, refined_creative)
-    
-        add_notification(containers, f"refined critical agent")
-        result = critical_agent.stream_async(next_critical_message)
-        refined_critical = await show_streams(result, containers, debug_mode)
-        update_report("critical", request_id, refined_critical)
+    add_notification(containers, f"refined critical agent")
+    result = critical_agent.stream_async(next_critical_message)
+    refined_critical = await show_streams(result, containers)
+    update_report("critical", request_id, refined_critical)
 
-        if debug_mode == 'Demo':
-            add_response(containers, refined_critical)
-    
     # Share refined results with summarizer
     summarizer_messages.append(f"From Research Agent (Phase 2): {refined_research}")
     summarizer_messages.append(f"From Creative Agent (Phase 2): {refined_creative}")
@@ -406,15 +373,11 @@ Create a well-structured final answer that incorporates the research findings,
 creative ideas, and addresses the critical feedback.
 """
 
-    with strands_agent.mcp_manager.get_active_clients(selected_mcp_servers) as _:
-        add_notification(containers, f"summarizer agent")
-        result = summarizer_agent.stream_async(next_summarizer_message)
-        final_solution = await show_streams(result, containers, "Disable")
-        logger.info(f"final_solution: {final_solution}")
-        update_report("summarizer", request_id, final_solution)
-
-        if debug_mode == 'Demo':
-            add_response(containers, final_solution)
+    add_notification(containers, f"summarizer agent")
+    result = summarizer_agent.stream_async(next_summarizer_message)
+    final_solution = await show_streams(result, containers)
+    logger.info(f"final_solution: {final_solution}")
+    update_report("summarizer", request_id, final_solution)
 
     urls = await create_final_report(request_id, question, final_solution, report_url)
     logger.info(f"urls: {urls}")
