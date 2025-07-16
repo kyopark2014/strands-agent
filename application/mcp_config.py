@@ -379,7 +379,7 @@ def load_config(mcp_type):
             }
         }
     
-    elif mcp_type == "tavily-manual":
+    elif mcp_type == "tavily-search":
         return {
             "mcpServers": {
                 "arxiv-manager": {

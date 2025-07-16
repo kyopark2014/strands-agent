@@ -73,18 +73,39 @@ with st.sidebar:
 
     strands_tools = ["calculator", "current_time", "speak"]
     mcp_tools = [
-        "basic", "code interpreter", "aws document", "aws cost", "aws cli", 
+        "basic", "tavily-search", "aws document", "aws cost", "aws cli", 
         "use_aws", "aws cloudwatch", "aws storage", "image generation", "aws diagram",
-        "knowledge base", "perplexity", "ArXiv", "wikipedia", 
+        "code interpreter", "knowledge base", "perplexity", "ArXiv", "wikipedia", 
         "filesystem", "terminal", "text editor", "context7", "puppeteer", 
         "playwright", "firecrawl", "obsidian", "airbnb", 
-        "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "tavily-manual", "사용자 설정"
+        "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "사용자 설정"
     ]
 
     mcp_selections = {}
     strands_selections = {}
     default_strands_tools = []
     default_mcp_selections = ["basic", "filesystem", "use_aws"]
+    
+    with st.expander("MCP 옵션 선택", expanded=True):            
+        # Create two columns
+        col1, col2 = st.columns(2)
+        
+        # Split options into two groups
+        mid_point = len(mcp_tools) // 2
+        first_half = mcp_tools[:mid_point]
+        second_half = mcp_tools[mid_point:]
+        
+        # Display first group in the first column
+        with col1:
+            for option in first_half:
+                default_value = option in default_mcp_selections
+                mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+        
+        # Display second group in the second column
+        with col2:
+            for option in second_half:
+                default_value = option in default_mcp_selections
+                mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
 
     with st.expander("Strands Tools 옵션 선택", expanded=True):            
         # Create two columns
@@ -106,27 +127,6 @@ with st.sidebar:
             for option in second_half:
                 default_value = option in default_strands_tools
                 strands_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
-
-    with st.expander("MCP 옵션 선택", expanded=True):            
-        # Create two columns
-        col1, col2 = st.columns(2)
-        
-        # Split options into two groups
-        mid_point = len(mcp_tools) // 2
-        first_half = mcp_tools[:mid_point]
-        second_half = mcp_tools[mid_point:]
-        
-        # Display first group in the first column
-        with col1:
-            for option in first_half:
-                default_value = option in default_mcp_selections
-                mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
-        
-        # Display second group in the second column
-        with col2:
-            for option in second_half:
-                default_value = option in default_mcp_selections
-                mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
 
     if mcp_selections["사용자 설정"]:
         mcp = {}
