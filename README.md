@@ -445,7 +445,64 @@ async def trip_planning_assistant(query: str) -> str:
 <img width="700" alt="swarm" src="https://github.com/user-attachments/assets/b2d400b5-87f2-4a1a-9e28-877e107834c2" />
 
 
-이를 구현하는 방법은 [strands_swarm.py](./application/strands_swarm.py)을 참조합니다. 먼저 질문을 research, creative, critical agent에 전달해 답변을 구하고, 결과를 다른 agent들에 전달합니다.
+이를 구현하는 방법은 [strands_swarm.py](./application/strands_swarm.py)을 참조합니다. 각 agent의 페르소나에 맞게 MCP tool과 함께 agent를 정의 합니다.
+
+```python
+# Create specialized agents with different expertise
+# research agent
+system_prompt = (
+    "당신은 정보 수집과 분석을 전문으로 하는 연구원입니다. "
+    "당신의 역할은 해당 주제에 대한 사실적 정보와 연구 통찰력을 제공하는 것입니다. "
+    "정확한 데이터를 제공하고 문제의 핵심적인 측면들을 파악하는 데 집중해야 합니다. "
+    "다른 에이전트로부터 입력을 받을 때, 그들의 정보가 당신의 연구와 일치하는지 평가하세요. "
+)
+model = strands_agent.get_model()
+research_agent = Agent(
+    model=model,
+    system_prompt=system_prompt, 
+    tools=tools
+)
+
+# Creative Agent
+system_prompt = (
+    "당신은 혁신적인 솔루션 생성을 전문으로 하는 창의적 에이전트입니다. "
+    "당신의 역할은 틀에 박힌 사고에서 벗어나 창의적인 접근법을 제안하는 것입니다. "
+    "다른 에이전트들로부터 얻은 정보를 바탕으로 하되, 당신만의 독창적인 창의적 관점을 추가해야 합니다. "
+    "다른 사람들이 고려하지 않았을 수도 있는 참신한 접근법에 집중하세요. "
+)
+creative_agent = Agent(
+    model=model,
+    system_prompt=system_prompt, 
+    tools=tools
+)
+
+# Critical Agent
+system_prompt = (
+    "당신은 제안서를 분석하고 결함을 찾는 것을 전문으로 하는 비판적 에이전트입니다. "
+    "당신의 역할은 다른 에이전트들이 제안한 해결책을 평가하고 잠재적인 문제점들을 식별하는 것입니다. "
+    "제안된 해결책을 신중히 검토하고, 약점이나 간과된 부분을 찾아내며, 개선 방안을 제시해야 합니다. "
+    "비판할 때는 건설적으로 하되, 최종 해결책이 견고하도록 보장하세요. "
+)
+critical_agent = Agent(
+    model=model,
+    system_prompt=system_prompt, 
+    tools=tools
+)
+
+# summarizer agent
+system_prompt = (
+    "당신은 정보 종합을 전문으로 하는 요약 에이전트입니다. "
+    "당신의 역할은 모든 에이전트로부터 통찰력을 수집하고 응집력 있는 최종 해결책을 만드는 것입니다."
+    "최고의 아이디어들을 결합하고 비판점들을 다루어 포괄적인 답변을 만들어야 합니다. "
+    "원래 질문을 효과적으로 다루는 명확하고 실행 가능한 요약을 작성하는 데 집중하세요. "
+)
+summarizer_agent = Agent(
+    model=model,
+    system_prompt=system_prompt,
+    callback_handler=None)
+```
+
+주어진 질문에 대해 research, creative, critical agent의 응답을 구하고, 자신의 결과와 함게 다른 agent들의 결과를 전달합니다.
 
 ```python
 result = research_agent.stream_async(question)
