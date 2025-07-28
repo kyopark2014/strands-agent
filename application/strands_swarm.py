@@ -428,10 +428,7 @@ creative ideas, and addresses the critical feedback.
 
     return final_solution, urls
 
-# swarm agent
-import threading
-import queue
-
+############## Parallel version ##############
 def create_research_agent(question, tools):
     # research agent
     if isKorean(question):
