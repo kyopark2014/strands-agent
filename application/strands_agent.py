@@ -73,7 +73,9 @@ def get_status_msg(status):
 #########################################################
 # Strands Agent 
 #########################################################
-def get_model():
+aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
+
+def get_model(region):
     if chat.model_type == 'nova':
         STOP_SEQUENCE = '"\n\n<thinking>", "\n<thinking>", " <thinking>"'
     elif chat.model_type == 'claude':
@@ -91,8 +93,7 @@ def get_model():
     aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
     aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
     aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
-    aws_region = os.environ.get('AWS_DEFAULT_REGION', 'ap-northeast-2')
-
+    
     # Bedrock 클라이언트 설정
     bedrock_config = Config(
         read_timeout=900,
@@ -103,7 +104,7 @@ def get_model():
     if aws_access_key and aws_secret_key:
         bedrock_client = boto3.client(
             'bedrock-runtime',
-            region_name=aws_region,
+            region_name=region,
             aws_access_key_id=aws_access_key,
             aws_secret_access_key=aws_secret_key,
             aws_session_token=aws_session_token,
@@ -112,7 +113,7 @@ def get_model():
     else:
         bedrock_client = boto3.client(
             'bedrock-runtime',
-            region_name=aws_region,
+            region_name=region,
             config=bedrock_config
         )
 
@@ -310,7 +311,7 @@ def create_agent(system_prompt, tools, history_mode):
             "모르는 질문을 받으면 솔직히 모른다고 말합니다."
         )
 
-    model = get_model()
+    model = get_model(aws_region)
     if history_mode == "Enable":
         logger.info("history_mode: Enable")
         agent = Agent(

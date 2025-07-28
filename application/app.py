@@ -182,7 +182,7 @@ with st.sidebar:
         logger.info(f"reasoningMode: {reasoningMode}")
 
     # multi region check box
-    select_multiRegion = st.checkbox('Multi Region (RAG)', value=False)
+    select_multiRegion = st.checkbox('Multi Region', value=False)
     multiRegion = 'Enable' if select_multiRegion else 'Disable'
     #print('multiRegion: ', multiRegion)
 
@@ -314,7 +314,10 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             response = asyncio.run(strands_supervisor.run_agent(prompt, containers))
 
         elif mode == 'Strands Swarm':
-            response, urls = asyncio.run(strands_swarm.run_swarm(prompt, selected_strands_tools, selected_mcp_servers, containers))
+            if multiRegion == 'Enable':
+                response, urls = asyncio.run(strands_swarm.run_swarm_parallel(prompt, selected_strands_tools, selected_mcp_servers, containers))
+            else:
+                response, urls = asyncio.run(strands_swarm.run_swarm(prompt, selected_strands_tools, selected_mcp_servers, containers))
 
             if urls:
                 with st.expander(f"최종 결과"):
