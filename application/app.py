@@ -77,7 +77,7 @@ with st.sidebar:
         "use_aws", "aws cloudwatch", "aws storage", "image generation", "aws diagram",
         "code interpreter", "knowledge base", "perplexity", "ArXiv", "wikipedia", 
         "filesystem", "terminal", "text editor", "context7", "puppeteer", 
-        "playwright", "firecrawl", "obsidian", "airbnb", 
+        "agentcore-browser", "playwright", "firecrawl", "obsidian", "airbnb", 
         "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "사용자 설정"
     ]
 

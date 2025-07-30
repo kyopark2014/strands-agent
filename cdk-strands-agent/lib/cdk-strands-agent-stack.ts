@@ -288,6 +288,16 @@ export class CdkStrandsAgentStack extends cdk.Stack {
       },
     });
 
+    const novaActSecret = new secretsmanager.Secret(this, `nova-act-secret-for-${projectName}`, {
+      description: 'secret for nova act api key', // nova act
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      secretName: `nova-act-${projectName}`,
+      secretObjectValue: {
+        project_name: cdk.SecretValue.unsafePlainText(projectName),
+        nova_act_api_key: cdk.SecretValue.unsafePlainText(''),
+      },
+    });
+    
     // lambda-rag
     const roleLambdaRag = new iam.Role(this, `role-lambda-rag-for-${projectName}`, {
       roleName: `role-lambda-rag-for-${projectName}-${region}`,
