@@ -719,6 +719,13 @@ async def economic_department(query: str) -> str:
     return result
 ```
 
+### Memory 활용
+
+아래와 같이 "내가 좋아하는 스포츠는?"를 입력하면 long term memory에서 사용자에 대한 정보를 조회하여 답변할 수 있습니다.
+
+<img width="721" height="770" alt="image" src="https://github.com/user-attachments/assets/193105da-09df-4e28-bc64-b72a79936550" />
+
+
 
 ## 설치하기
 
