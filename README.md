@@ -756,7 +756,7 @@ events = client.list_events(
 
 ### Long Term Memory
 
-Long term meory를 위해 필요한 정보에는 memory, actor, session, namespace가 있습니다. 아래와 같이 이미 저장된 값이 있다면 가져오고, 없다면 생성합니다. 상세한 코드는 [langgraph_agent.py](./application/langgraph_agent.py)을 참조합니다.
+Long term meory를 위해 필요한 정보에는 memory, actor, session, namespace가 있습니다. 아래와 같이 이미 저장된 값이 있다면 가져오고, 없다면 생성합니다. 상세한 코드는 [strands_agent.py](./application/strands_agent.py)을 참조합니다.
 
 ```python
 # initate memory variables
