@@ -7,6 +7,7 @@ import sys
 import json
 import utils
 import boto3
+import agentcore_memory
 
 from urllib import parse
 from contextlib import contextmanager
@@ -39,6 +40,8 @@ references = []
 image_url = []
 tool_list = []
 
+memory_id = actor_id = session_id = namespace = None
+
 s3_prefix = "docs"
 capture_prefix = "captures"
 
@@ -46,16 +49,19 @@ selected_strands_tools = []
 selected_mcp_servers = []
 
 history_mode = "Disable"
+aws_region = utils.bedrock_region
 
 index = 0
 def add_notification(containers, message):
     global index
-    containers['notification'][index].info(message)
+    if containers is not None:
+        containers['notification'][index].info(message)
     index += 1
 
 def add_response(containers, message):
     global index
-    containers['notification'][index].markdown(message)
+    if containers is not None:
+        containers['notification'][index].markdown(message)
     index += 1
 
 status_msg = []
@@ -73,9 +79,7 @@ def get_status_msg(status):
 #########################################################
 # Strands Agent 
 #########################################################
-aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
-
-def get_model(region):
+def get_model():
     if chat.model_type == 'nova':
         STOP_SEQUENCE = '"\n\n<thinking>", "\n<thinking>", " <thinking>"'
     elif chat.model_type == 'claude':
@@ -93,7 +97,7 @@ def get_model(region):
     aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
     aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
     aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
-    
+
     # Bedrock 클라이언트 설정
     bedrock_config = Config(
         read_timeout=900,
@@ -104,7 +108,7 @@ def get_model(region):
     if aws_access_key and aws_secret_key:
         bedrock_client = boto3.client(
             'bedrock-runtime',
-            region_name=region,
+            region_name=aws_region,
             aws_access_key_id=aws_access_key,
             aws_secret_access_key=aws_secret_key,
             aws_session_token=aws_session_token,
@@ -113,7 +117,7 @@ def get_model(region):
     else:
         bedrock_client = boto3.client(
             'bedrock-runtime',
-            region_name=region,
+            region_name=aws_region,
             config=bedrock_config
         )
 
@@ -268,9 +272,11 @@ def update_tools(strands_tools: list, mcp_servers: list):
         # "python_repl": python_repl  # Temporarily disabled
     }
 
-    for tool_name in strands_tools:
-        if tool_name in tool_map:
-            tools.append(tool_map[tool_name])
+    for tool_item in strands_tools:
+        if isinstance(tool_item, list):
+            tools.extend(tool_item)
+        elif isinstance(tool_item, str) and tool_item in tool_map:
+            tools.append(tool_map[tool_item])
 
     # MCP tools
     mcp_servers_loaded = 0
@@ -311,7 +317,11 @@ def create_agent(system_prompt, tools, history_mode):
             "모르는 질문을 받으면 솔직히 모른다고 말합니다."
         )
 
-    model = get_model(aws_region)
+    # Validate system prompt is not empty
+    if not system_prompt or not system_prompt.strip():
+        system_prompt = "You are a helpful AI assistant."
+
+    model = get_model()
     if history_mode == "Enable":
         logger.info("history_mode: Enable")
         agent = Agent(
@@ -334,6 +344,8 @@ def get_tool_info(tool_name, tool_content):
     tool_references = []    
     urls = []
     content = ""
+
+    logger.info(f"tool_name: {tool_name}")
 
     # tavily
     if isinstance(tool_content, str) and "Title:" in tool_content and "URL:" in tool_content and "Content:" in tool_content:
@@ -524,6 +536,78 @@ def get_tool_info(tool_name, tool_content):
 
         logger.info(f"content: {content}")
         logger.info(f"tool_references: {tool_references}")
+    
+    # aws-knowledge
+    elif tool_name == "aws___read_documentation":
+        logger.info(f"#### {tool_name} ####")
+        if isinstance(tool_content, dict):
+            json_data = tool_content
+        elif isinstance(tool_content, list):
+            json_data = tool_content
+        else:
+            json_data = json.loads(tool_content)
+        
+        logger.info(f"json_data: {json_data}")
+        payload = json_data["response"]["payload"]
+        if "content" in payload:
+            payload_content = payload["content"]
+            if "result" in payload_content:
+                result = payload_content["result"]
+                logger.info(f"result: {result}")
+                if isinstance(result, str) and "AWS Documentation from" in result:
+                    logger.info(f"Processing AWS Documentation format: {result}")
+                    try:
+                        # Extract URL from "AWS Documentation from https://..."
+                        url_start = result.find("https://")
+                        if url_start != -1:
+                            # Find the colon after the URL (not inside the URL)
+                            url_end = result.find(":", url_start)
+                            if url_end != -1:
+                                # Check if the colon is part of the URL or the separator
+                                url_part = result[url_start:url_end]
+                                # If the colon is immediately after the URL, use it as separator
+                                if result[url_end:url_end+2] == ":\n":
+                                    url = url_part
+                                    content_start = url_end + 2  # Skip the colon and newline
+                                else:
+                                    # Try to find the actual URL end by looking for space or newline
+                                    space_pos = result.find(" ", url_start)
+                                    newline_pos = result.find("\n", url_start)
+                                    if space_pos != -1 and newline_pos != -1:
+                                        url_end = min(space_pos, newline_pos)
+                                    elif space_pos != -1:
+                                        url_end = space_pos
+                                    elif newline_pos != -1:
+                                        url_end = newline_pos
+                                    else:
+                                        url_end = len(result)
+                                    
+                                    url = result[url_start:url_end]
+                                    content_start = url_end + 1
+                                
+                                # Remove trailing colon from URL if present
+                                if url.endswith(":"):
+                                    url = url[:-1]
+                                
+                                # Extract content after the URL
+                                if content_start < len(result):
+                                    content_text = result[content_start:].strip()
+                                    # Truncate content for display
+                                    display_content = content_text[:100] + "..." if len(content_text) > 100 else content_text
+                                    display_content = display_content.replace("\n", "")
+                                    
+                                    tool_references.append({
+                                        "url": url,
+                                        "title": "AWS Documentation",
+                                        "content": display_content
+                                    })
+                                    content += content_text + "\n\n"
+                                    logger.info(f"Extracted URL: {url}")
+                                    logger.info(f"Extracted content length: {len(content_text)}")
+                    except Exception as e:
+                        logger.error(f"Error parsing AWS Documentation format: {e}")
+        logger.info(f"content: {content}")
+        logger.info(f"tool_references: {tool_references}")
 
     else:        
         try:
@@ -597,7 +681,16 @@ async def initiate_agent(system_prompt, strands_tools, mcp_servers, historyMode)
 
     logger.info(f"initiated: {initiated}, update_required: {update_required}")
 
-    if not initiated or update_required:         
+    if not initiated or update_required:
+        # strands_provider = AgentCoreMemoryToolProvider(
+        #     memory_id=memory_id,
+        #     actor_id=user_id,
+        #     session_id=user_id,
+        #     namespace=f"/users/{user_id}",
+        #     region=aws_region
+        # )
+        # strands_tools.append(strands_provider.tools)
+        
         init_mcp_clients(mcp_servers)
         tools = update_tools(strands_tools, mcp_servers)
         logger.info(f"tools: {tools}")
@@ -671,8 +764,6 @@ async def show_streams(agent_stream, containers):
 
                                 content, urls, refs = get_tool_info(tool_name, content['text'])
                                 logger.info(f"content: {content}")
-                                logger.info(f"urls: {urls}")
-                                logger.info(f"refs: {refs}")
 
                                 if refs:
                                     for r in refs:
@@ -717,42 +808,6 @@ def get_reference(references):
             ref += f"{i+1}. [{reference['title']}]({reference['url']}), {reference['content']}...\n"        
     return ref
 
-async def run_agent(question, strands_tools, mcp_servers, historyMode, containers):
-    global status_msg, image_url, references, tool_list
-    status_msg = []
-    image_url = []    
-    references = []    
-    tool_list = []
-
-    debug_mode = chat.debug_mode
-
-    if debug_mode == 'Enable' and containers is not None:
-        containers['status'].info(get_status_msg(f"(start"))    
-
-    # initiate agent
-    await initiate_agent(None, strands_tools, mcp_servers, historyMode)
-    logger.info(f"tool_list: {tool_list}")    
-    if debug_mode == 'Enable' and containers is not None and tool_list:
-        containers['tools'].info(f"tool_list: {tool_list}")
-
-    # run agent
-    result = ""
-    with mcp_manager.get_active_clients(mcp_servers) as _:
-        agent_stream = agent.stream_async(question)
-
-        result, image_url = await show_streams(agent_stream, containers)
-        
-    # get reference
-    result += get_reference(references)
-
-    if containers is not None:
-        containers['notification'][index-1].markdown(result)
-
-    if debug_mode == 'Enable' and containers is not None:
-        containers['status'].info(get_status_msg(f"end)"))
-
-    return result, image_url
-
 async def run_task(question, strands_tools, mcp_servers, containers, historyMode, previous_status_msg, previous_response_msg):
     global status_msg, response_msg
     status_msg = previous_status_msg
@@ -786,7 +841,7 @@ async def run_task(question, strands_tools, mcp_servers, containers, historyMode
     
     # get reference
     ref = get_reference(references)
-    if ref:
+    if ref and containers is not None:
         containers['notification'][index-1].markdown(result+ref)
 
     if debug_mode == 'Enable' and containers is not None:
@@ -794,3 +849,77 @@ async def run_task(question, strands_tools, mcp_servers, containers, historyMode
 
     return result, image_url, status_msg, response_msg
 
+async def run_agent(question, strands_tools, mcp_servers, historyMode, containers):
+    global memory_id, actor_id, session_id, namespace
+    global status_msg, image_url, references, tool_list
+    status_msg = []
+    image_url = []
+    references = []    
+    tool_list = []
+    
+    # initate memory variables
+    memory_id, actor_id, session_id, namespace = agentcore_memory.load_memory_variables(chat.user_id)
+    logger.info(f"memory_id: {memory_id}, actor_id: {actor_id}, session_id: {session_id}, namespace: {namespace}")
+
+    if memory_id is None:
+        # retrieve memory id
+        memory_id = agentcore_memory.retrieve_memory_id()
+        logger.info(f"memory_id: {memory_id}")        
+        
+        # create memory if not exists
+        if memory_id is None:
+            logger.info(f"Memory will be created...")
+            add_notification(containers, f"Memory will be created...")
+            memory_id = agentcore_memory.create_memory(namespace)
+            logger.info(f"Memory was created... {memory_id}")
+            add_notification(containers, f"Memory was created... {memory_id}")
+        
+        # create memory strategy if not exists
+        agentcore_memory.create_strategy_if_not_exists(memory_id=memory_id, namespace=namespace, strategy_name=chat.user_id)
+
+        # save memory variables
+        agentcore_memory.update_memory_variables(
+            user_id=chat.user_id, 
+            memory_id=memory_id, 
+            actor_id=actor_id, 
+            session_id=session_id, 
+            namespace=namespace)
+
+    global index
+    index = 0
+
+    debug_mode = chat.debug_mode
+
+    if debug_mode == 'Enable' and containers is not None:
+        containers['status'].info(get_status_msg(f"(start"))    
+
+    # initiate agent
+    await initiate_agent(None, strands_tools, mcp_servers, historyMode)
+    logger.info(f"tool_list: {tool_list}")    
+    if debug_mode == 'Enable' and containers is not None and tool_list:
+        containers['tools'].info(f"tool_list: {tool_list}")
+
+    # run agent
+    result = ""
+    with mcp_manager.get_active_clients(mcp_servers) as _:
+        agent_stream = agent.stream_async(question)
+
+        result, image_url = await show_streams(agent_stream, containers)
+        
+    # get reference
+    result += get_reference(references)
+
+    if containers is not None:
+        containers['notification'][index-1].markdown(result)
+
+    if debug_mode == 'Enable' and containers is not None:
+        containers['status'].info(get_status_msg(f"end)"))
+
+    # save event to memory
+    if memory_id is not None:
+        agentcore_memory.save_conversation_to_memory(memory_id, actor_id, session_id, question, result) 
+
+    #conversations = agentcore_memory.get_memory_record()
+    #logger.info(f"conversations: {conversations}")
+
+    return result, image_url

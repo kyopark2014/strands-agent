@@ -73,7 +73,7 @@ with st.sidebar:
 
     strands_tools = ["calculator", "current_time", "speak"]
     mcp_tools = [
-        "basic", "tavily-search", "aws-api", "aws-knowledge", "aws document", "aws cost", "aws cli", 
+        "basic", "short-term memory", "long-term memory", "tavily-search", "aws-api", "aws-knowledge", "aws document", "aws cost", "aws cli", 
         "use_aws", "aws cloudwatch", "aws storage", "image generation", "aws diagram",
         "code interpreter", "knowledge base", "perplexity", "ArXiv", "wikipedia", 
         "filesystem", "terminal", "text editor", "context7", "puppeteer", 

@@ -33,6 +33,7 @@ print(f"config: {config}")
 bedrock_region = config["region"] if "region" in config else "us-west-2"
 projectName = config["projectName"] if "projectName" in config else "mcp-rag"
 accountId = config["accountId"] if "accountId" in config else None
+user_id = 'strands'
 
 if accountId is None:
     raise Exception ("No accountId")
@@ -91,6 +92,7 @@ def update(modelName, reasoningMode, debugMode, multiRegion, gradingMode):
         mcp_env['grading_mode'] = grading_mode
 
     # update mcp.env    
+    mcp_env['user_id'] = user_id
     utils.save_mcp_env(mcp_env)
     logger.info(f"mcp.env updated: {mcp_env}")
 

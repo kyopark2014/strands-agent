@@ -157,6 +157,41 @@ export class CdkStrandsAgentStack extends cdk.Stack {
       }),
     );
 
+    // agentcore role
+    const agentcore_memory_role = new iam.Role(this, `role-agentcore-memory-for-${projectName}`, {
+      roleName: `role-agentcore-memory-for-${projectName}-${region}`,
+      assumedBy: new iam.CompositePrincipal(
+        new iam.ServicePrincipal("bedrock-agentcore.amazonaws.com")
+      )
+    });
+
+    const agentcoreMemoryPolicy = new iam.PolicyStatement({ 
+      effect: iam.Effect.ALLOW,
+      resources: [
+        `arn:aws:bedrock:*::foundation-model/*`,
+        `arn:aws:bedrock:*:*:inference-profile/*`
+      ],
+      actions: [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream",
+        "bedrock:ListMemories",
+        "bedrock:CreateMemory",
+        "bedrock:DeleteMemory",
+        "bedrock:DescribeMemory",
+        "bedrock:UpdateMemory",
+        "bedrock:ListMemoryRecords",
+        "bedrock:CreateMemoryRecord",
+        "bedrock:DeleteMemoryRecord",
+        "bedrock:DescribeMemoryRecord",
+        "bedrock:UpdateMemoryRecord"
+      ],
+    });        
+    agentcore_memory_role.attachInlinePolicy( 
+      new iam.Policy(this, `agentcore-memory-policy-for-${projectName}`, {
+        statements: [agentcoreMemoryPolicy],
+      }),
+    );  
+
     // OpenSearch Serverless
     const collectionName = vectorIndexName
     const OpenSearchCollection = new opensearchserverless.CfnCollection(this, `opensearch-correction-for-${projectName}`, {
@@ -360,6 +395,7 @@ export class CdkStrandsAgentStack extends cdk.Stack {
       "s3_bucket": s3Bucket.bucketName,      
       "s3_arn": s3Bucket.bucketArn,
       "sharing_url": 'https://'+distribution_sharing.domainName,
+      "agentcore_memory_role": agentcore_memory_role.roleArn
     }    
     new cdk.CfnOutput(this, `environment-for-${projectName}`, {
       value: JSON.stringify(environment),
