@@ -235,7 +235,7 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
             "You should focus on providing accurate data and identifying key aspects of the problem. "
             "When receiving input from other agents, evaluate if their information aligns with your research. "
         )
-    model = strands_agent.get_model('us-west-2')
+    model = strands_agent.get_model()
     research_agent = Agent(
         model=model,
         system_prompt=system_prompt, 
@@ -445,7 +445,7 @@ def create_research_agent(question, tools):
             "You should focus on providing accurate data and identifying key aspects of the problem. "
             "When receiving input from other agents, evaluate if their information aligns with your research. "
         )
-    model = strands_agent.get_model('us-west-2')
+    model = strands_agent.get_model()
     research_agent = Agent(
         model=model,
         system_prompt=system_prompt, 
@@ -469,7 +469,7 @@ def create_creative_agent(question, tools):
             "You should build upon information from other agents while adding your unique creative perspective. "
             "Focus on novel approaches that others might not have considered. "
         )
-    model = strands_agent.get_model('us-east-2')
+    model = strands_agent.get_model()
     creative_agent = Agent(
         model=model,
         system_prompt=system_prompt, 
@@ -493,7 +493,7 @@ def create_critical_agent(question, tools):
             "You should carefully examine proposed solutions, find weaknesses or oversights, and suggest improvements. "
             "Be constructive in your criticism while ensuring the final solution is robust. "
         )
-    model = strands_agent.get_model('us-east-1')
+    model = strands_agent.get_model()
     critical_agent = Agent(
         model=model,
         system_prompt=system_prompt, 
@@ -517,7 +517,7 @@ def create_summarizer_agent(question, tools):
             "You should combine the best ideas and address the criticisms to create a comprehensive response. "
             "Focus on creating a clear, actionable summary that addresses the original query effectively. "
         )
-    model = strands_agent.get_model('us-east-1')
+    model = strands_agent.get_model()
     summarizer_agent = Agent(model=model, system_prompt=system_prompt, callback_handler=None)
     return summarizer_agent
 
