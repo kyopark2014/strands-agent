@@ -304,11 +304,21 @@ if prompt := st.chat_input("메시지를 입력하세요."):
         image_urls = []
         if mode == 'Agent':
             history_mode = "Disable"
-            response, image_urls = asyncio.run(strands_agent.run_agent(prompt, selected_strands_tools, selected_mcp_servers, history_mode, containers))
+            response, image_urls = asyncio.run(chat.run_strands_agent(
+                query=prompt, 
+                strands_tools=selected_strands_tools, 
+                mcp_servers=selected_mcp_servers, 
+                history_mode=history_mode, 
+                containers=containers))
 
         elif mode == 'Agent (Chat)':
             history_mode = "Enable"
-            response, image_urls = asyncio.run(strands_agent.run_agent(prompt, selected_strands_tools, selected_mcp_servers, history_mode, containers))
+            response, image_urls = asyncio.run(chat.run_strands_agent(
+                query=prompt, 
+                strands_tools=selected_strands_tools, 
+                mcp_servers=selected_mcp_servers, 
+                history_mode=history_mode, 
+                containers=containers))
 
         elif mode == 'Strands Supervisor':
             response = asyncio.run(strands_supervisor.run_agent(prompt, containers))
