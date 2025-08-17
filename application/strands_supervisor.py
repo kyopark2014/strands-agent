@@ -6,10 +6,17 @@ import os
 import logging
 import sys
 import strands_agent
+import re
+import json
+import re
+import chat
+import mcp_config
 
 from strands import Agent, tool
+from strands.tools.mcp import MCPClient
+from mcp import stdio_client, StdioServerParameters
 from strands_tools import file_write
-from strands_tools import agent_graph, retrieve
+
 logging.basicConfig(
     level=logging.INFO,  
     format='%(filename)s:%(lineno)d | %(message)s',
@@ -97,25 +104,41 @@ async def show_streams(agent_stream, containers):
     
     return result
 
-RESEARCH_ASSISTANT_PROMPT = """You are a specialized research assistant. Focus only on providing
-factual, well-sourced information in response to research questions.
-Always cite your sources when possible."""
+def create_mcp_client(mcp_server_name: str):
+    config = mcp_config.load_config(mcp_server_name)
+    mcp_servers = config["mcpServers"]
+    
+    mcp_client = None
+    for server_name, server_config in mcp_servers.items():
+        logger.info(f"server_name: {server_name}")
+        logger.info(f"server_config: {server_config}")   
 
-PRODUCT_RECOMMENDATION_ASSISTANT_PROMPT = """You are a specialized product recommendation assistant.
-Provide personalized product suggestions based on user preferences. Always cite your sources."""
+        env = server_config["env"] if "env" in server_config else None
 
-TRIP_PLANNING_ASSISTANT_PROMPT = """You are a specialized travel planning assistant.
-Create detailed travel itineraries based on user preferences."""
+        if server_name == mcp_server_name:
+            mcp_client = MCPClient(lambda: stdio_client(
+                StdioServerParameters(
+                    command=server_config["command"], 
+                    args=server_config["args"], 
+                    env=env
+                )
+            ))
+            break
+    
+    return mcp_client
 
-MAIN_SYSTEM_PROMPT = """
-You are an assistant that routes queries to specialized agents:
-- For research questions and factual information → Use the research_assistant tool
-- For product recommendations and shopping advice → Use the product_recommendation_assistant tool
-- For travel planning and itineraries → Use the trip_planning_assistant tool
-- For simple questions not requiring specialized knowledge → Answer directly
+def isKorean(text):
+    # check korean
+    pattern_hangul = re.compile('[\u3131-\u3163\uac00-\ud7a3]+')
+    word_kor = pattern_hangul.search(str(text))
+    # print('word_kor: ', word_kor)
 
-Always select the most appropriate tool based on the user's query.
-"""
+    if word_kor and word_kor != 'None':
+        # logger.info(f"Korean: {word_kor}")
+        return True
+    else:
+        # logger.info(f"Not Korean:: {word_kor}")
+        return False
 
 # supervisor agent
 async def run_agent(question, containers):
@@ -136,17 +159,44 @@ async def run_agent(question, containers):
         Returns:
             A detailed research answer with citations
         """
-        try:
-            model = strands_agent.get_model()
 
-            research_agent = Agent(
-                model=model,
-                system_prompt=RESEARCH_ASSISTANT_PROMPT,
+        if isKorean(query):
+            RESEARCH_ASSISTANT_PROMPT = (
+                "당신은 연구 도우미 입니다.\n"
+                "연구 질문에 대한 사실적인 정보를 제공하는 것에 집중해주세요.\n"
+                "항상 출처를 표시해주세요."
+            )
+        else:
+            RESEARCH_ASSISTANT_PROMPT = (
+                "You are a specialized research assistant.\n"
+                "Focus only on providing factual, well-sourced information in response to research questions.\n"
+                "Always cite your sources when possible."
             )
 
-            agent_stream = research_agent.stream_async(query)
-            result = await show_streams(agent_stream, containers)
-            logger.info(f"result of research_assistant: {result}")
+        try:
+            mcp_client = create_mcp_client("tavily-search")
+            logger.info(f"mcp_client: {mcp_client}")
+            with mcp_client as client:
+                mcp_tools = client.list_tools_sync()
+                logger.info(f"mcp_tools: {mcp_tools}")
+                
+                tools = []
+                tools.extend(mcp_tools)
+
+                tool_list = strands_agent.get_tool_list(tools)
+                logger.info(f"tools loaded: {tool_list}")
+        
+                model = strands_agent.get_model()
+
+                research_agent = Agent(
+                    model=model,
+                    system_prompt=RESEARCH_ASSISTANT_PROMPT,
+                    tools=tools
+                )
+
+                agent_stream = research_agent.stream_async(query)
+                result = await show_streams(agent_stream, containers)
+                logger.info(f"result of research_assistant: {result}")
 
             return result
         except Exception as e:
@@ -163,6 +213,20 @@ async def run_agent(question, containers):
         Returns:
             Personalized product recommendations with reasoning
         """
+
+        if isKorean(query):
+            PRODUCT_RECOMMENDATION_ASSISTANT_PROMPT = (
+                "당신은 제품 추천 도우미 입니다.\n"
+                "사용자의 취향에 맞는 제품을 추천해주세요.\n"
+                "항상 출처를 표시해주세요."
+            )
+        else:
+            PRODUCT_RECOMMENDATION_ASSISTANT_PROMPT = (
+                "You are a specialized product recommendation assistant.\n"
+                "Provide personalized product suggestions based on user preferences.\n"
+                "Always cite your sources."
+            )
+
         try:
             model = strands_agent.get_model()
 
@@ -190,6 +254,20 @@ async def run_agent(question, containers):
         Returns:
             A detailed travel itinerary or travel advice
         """
+
+        if isKorean(query):
+            TRIP_PLANNING_ASSISTANT_PROMPT = (
+                "당신은 여행 도우미 입니다.\n"
+                "여행 계획을 작성해주세요.\n"
+                "항상 출처를 표시해주세요."
+            )
+        else:
+            TRIP_PLANNING_ASSISTANT_PROMPT = (
+                "You are a specialized travel planning assistant.\n"
+                "Create detailed travel itineraries based on user preferences.\n"
+                "Always cite your sources."
+            )
+
         try:
             model = strands_agent.get_model()
 
@@ -207,6 +285,25 @@ async def run_agent(question, containers):
             return f"Error in trip planning: {str(e)}"
 
     # orchestrator agent
+    if isKorean(question):
+        MAIN_SYSTEM_PROMPT = (
+            "당신은 쿼리를 전문 에이전트로 라우팅하는 어시스턴트입니다.\n"
+            "연구 질문 및 사실 정보 → research_assistant 도구 사용\n"
+            "제품 추천 및 쇼핑 조언 → product_recommendation_assistant 도구 사용\n"
+            "여행 계획 및 일정 → trip_planning_assistant 도구 사용\n"
+            "전문 지식이 필요하지 않은 간단한 질문 → 직접 답변\n"
+            "항상 사용자의 쿼리에 따라 가장 적절한 도구를 선택하세요."    
+        )
+    else:
+        MAIN_SYSTEM_PROMPT = (
+            "You are an assistant that routes queries to specialized agents:\n"
+            "- For research questions and factual information → Use the research_assistant tool\n"
+            "- For product recommendations and shopping advice → Use the product_recommendation_assistant tool\n"
+            "- For travel planning and itineraries → Use the trip_planning_assistant tool\n"
+            "- For simple questions not requiring specialized knowledge → Answer directly\n"
+            "Always select the most appropriate tool based on the user's query."
+        )
+
     orchestrator = Agent(
         model=strands_agent.get_model(),
         system_prompt=MAIN_SYSTEM_PROMPT,

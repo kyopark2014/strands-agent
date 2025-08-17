@@ -1005,7 +1005,6 @@ async def run_strands_agent(query, strands_tools, mcp_servers, history_mode, con
         mcp_servers=mcp_servers, 
         historyMode=history_mode
     )
-    logger.info(f"tool_list: {tool_list}")    
 
     # run agent    
     final_result = current = ""
@@ -1042,12 +1041,12 @@ async def run_strands_agent(query, strands_tools, mcp_servers, history_mode, con
                 if toolUseId not in tool_info_list: # new tool info
                     index += 1
                     current = ""
-                    logger.info(f"new tool info: {toolUseId} -> {index}")
+                    # logger.info(f"new tool info: {toolUseId} -> {index}")
                     tool_info_list[toolUseId] = index
                     tool_name_list[toolUseId] = name
                     add_notification(containers, f"Tool: {name}, Input: {input}")
                 else: # overwrite tool info if already exists
-                    logger.info(f"overwrite tool info: {toolUseId} -> {tool_info_list[toolUseId]}")
+                    # logger.info(f"overwrite tool info: {toolUseId} -> {tool_info_list[toolUseId]}")
                     containers['notification'][tool_info_list[toolUseId]].info(f"Tool: {name}, Input: {input}")
 
             elif "message" in event:

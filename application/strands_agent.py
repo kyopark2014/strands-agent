@@ -178,7 +178,7 @@ class MCPClientManager:
     @contextmanager
     def get_active_clients(self, active_clients: List[str]):
         """Manage active clients context"""
-        logger.info(f"active_clients: {active_clients}")
+        logger.info(f"active MCP clients: {active_clients}")
         active_contexts = []
         try:
             for client_name in active_clients:
@@ -203,7 +203,7 @@ mcp_manager = MCPClientManager()
 
 # Set up MCP clients
 def init_mcp_clients(mcp_servers: list):
-    logger.info(f"mcp_servers: {mcp_servers}")
+    logger.info(f"init_mcp_clients: {mcp_servers}")
     
     for tool in mcp_servers:
         logger.info(f"Initializing MCP client for tool: {tool}")
@@ -240,14 +240,15 @@ def update_tools(strands_tools: list, mcp_servers: list):
         "current_time": current_time,
         "use_aws": use_aws,
         "speak": speak
-        # "python_repl": python_repl  # Temporarily disabled
     }
 
     for tool_item in strands_tools:
         if isinstance(tool_item, list):
             tools.extend(tool_item)
+            logger.info(f"strands_tools: {tool_item}")
         elif isinstance(tool_item, str) and tool_item in tool_map:
             tools.append(tool_map[tool_item])
+            logger.info(f"tool_map[tool_item]: {tool_map[tool_item]}")
 
     # MCP tools
     mcp_servers_loaded = 0
@@ -315,28 +316,46 @@ def get_tool_list(tools):
     for tool in tools:
         if hasattr(tool, 'tool_name'):  # MCP tool
             tool_list.append(tool.tool_name)
-                
-        if str(tool).startswith("<module 'strands_tools."):   # strands_tools 
+        elif hasattr(tool, 'name'):  # MCP tool with name attribute
+            tool_list.append(tool.name)
+        elif hasattr(tool, '__name__'):  # Function or module
+            tool_list.append(tool.__name__)
+        elif str(tool).startswith("<module 'strands_tools."):   
             module_name = str(tool).split("'")[1].split('.')[-1]
             tool_list.append(module_name)
+        else:
+            # For MCP tools that might have different structure
+            tool_str = str(tool)
+            if 'MCPAgentTool' in tool_str:
+                # Try to extract tool name from MCP tool
+                try:
+                    if hasattr(tool, 'tool'):
+                        tool_list.append(tool.tool.name)
+                    else:
+                        tool_list.append(f"MCP_Tool_{len(tool_list)}")
+                except:
+                    tool_list.append(f"MCP_Tool_{len(tool_list)}")
+            else:
+                tool_list.append(str(tool))
     return tool_list
 
 async def initiate_agent(system_prompt, strands_tools, mcp_servers, historyMode):
     global agent, initiated
     global selected_strands_tools, selected_mcp_servers, history_mode, tool_list
 
+    logger.info(f"selected strands_tools: {strands_tools}")
+    logger.info(f"selected mcp_servers: {mcp_servers}")
+
     update_required = False
     if selected_strands_tools != strands_tools:
         logger.info("strands_tools update!")
         selected_strands_tools = strands_tools
         update_required = True
-        logger.info(f"strands_tools: {strands_tools}")
 
     if selected_mcp_servers != mcp_servers:
         logger.info("mcp_servers update!")
         selected_mcp_servers = mcp_servers
         update_required = True
-        logger.info(f"mcp_servers: {mcp_servers}")
 
     if history_mode != historyMode:
         logger.info("history_mode update!")
@@ -349,10 +368,11 @@ async def initiate_agent(system_prompt, strands_tools, mcp_servers, historyMode)
     if not initiated or update_required:        
         init_mcp_clients(mcp_servers)
         tools = update_tools(strands_tools, mcp_servers)
-        logger.info(f"tools: {tools}")
+        logger.info(f"updated tools: {tools}")
 
         agent = create_agent(system_prompt, tools, history_mode)
         tool_list = get_tool_list(tools)
+        logger.info(f"tool_list: {tool_list}")
 
         if not initiated:
             logger.info("create agent!")
