@@ -582,11 +582,6 @@ final_solution = await show_streams(result, containers)
 
 ```python
 from strands_tools import swarm
-system_prompt = (
-    "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
-    "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
-    "모르는 질문을 받으면 솔직히 모른다고 말합니다."
-)
 
 agent = Agent(
     model=strands_agent.get_model(),
