@@ -602,24 +602,10 @@ result = agent.tool.swarm(
 logger.info(f"result of swarm: {result}")
 ```
 
-Swarm tool로 얻어진 결과는 아래와 같이 summarize agent로 요약합니다.
+이때의 결과는 아래와 같습니다. 전문 agent에 대한 role과 prompt를 생성한 후에 요약된 결과를 보여줍니다.
 
-```python
-summarizer_prompt = f"""
-질문: <question>{question}</question>
 
-아래 에이전트들의 생각을 종합하여 최종 답변을 생성하세요. 
-<opinion>{"\n\n".join(messages)}</opinion>
-"""    
-
-model = strands_agent.get_model()
-summarizer_agent = Agent(
-    model=model,
-    system_prompt=summarizer_prompt,
-)    
-agent_stream = summarizer_agent.stream_async(question)
-result = await show_streams(agent_stream, containers)
-```
+<img width="723" height="789" alt="strands_swarm_tool" src="https://github.com/user-attachments/assets/f0b43cfb-abda-4c57-b1f6-c553f988097f" />
 
 
 ### Workflow
