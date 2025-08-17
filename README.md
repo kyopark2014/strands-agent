@@ -576,7 +576,7 @@ final_solution = await show_streams(result, containers)
 
 협업하는 swarm agent들로부터 얻어진 결과를 summarized agent로 정리하여 답변합니다. 아래는 swarm tool을 사용할때의 diagram입니다. 여기서 swarm agent의 숫자는 swarm_size로 조정합니다.
 
-<img width="600" alt="swarm_tool" src="https://github.com/user-attachments/assets/fd9b69f4-3d85-4dae-ab7f-347ef207f862" />
+<img width="500" alt="image" src="https://github.com/user-attachments/assets/27129887-a62f-403f-abb3-2d650fcbcaa1" />
 
 [strands_swarm_tool.py](./application/strands_swarm_tool.py)와 같이 strands agent를 이용해 swarm 형태의 multi agent를 구현하고, 이를 통해 복잡한 문제를 풀 수 있습니다.
 
