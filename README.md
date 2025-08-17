@@ -433,6 +433,10 @@ async def trip_planning_assistant(query: str) -> str:
     return result
 ```
 
+Supervisor는 전문 agent인 collaborator로 hand off를 수행함으로써 더 향상된 답변을 얻을 수 있습니다. 
+
+<img width="803" height="724" alt="strands_supervisor" src="https://github.com/user-attachments/assets/0fde6fc8-3ebb-4f1b-a1a6-dc7985d00940" />
+
 
 ### Swarm
 
