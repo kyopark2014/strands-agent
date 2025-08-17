@@ -20,11 +20,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
+streaming_index = None
 index = 0
 def add_notification(containers, message):
     global index
-    containers['notification'][index].info(message)
+
+    if index == streaming_index:
+        index += 1
+
+    if containers is not None:
+        containers['notification'][index].info(message)
     index += 1
+
+def update_streaming_result(containers, message):
+    global streaming_index
+    streaming_index = index 
+
+    if containers is not None:
+        containers['notification'][streaming_index].markdown(message)
 
 def add_response(containers, message):
     global index
@@ -99,12 +112,16 @@ async def show_streams(agent_stream, containers):
     return result
 
 # supervisor agent
+tool_info_list = dict()
+tool_result_list = dict()
+tool_name_list = dict()
+
 async def run_swarm_tool(question, containers):
     global status_msg
     status_msg = []
 
-    if chat.debug_mode == 'Enable':
-        containers['status'].info(get_status_msg(f"(start"))    
+    global index
+    index = 0
 
     system_prompt = (
         "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
@@ -120,74 +137,73 @@ async def run_swarm_tool(question, containers):
 
     result = agent.tool.swarm(
         task=question,
-        swarm_size=2,
+        swarm_size=3,
         coordination_pattern="collaborative"
     )    
-    logger.info(f"result of swarm: {result}")
 
-    if chat.debug_mode == 'Enable':
-        containers['status'].info(get_status_msg(f"end)"))
+    agent_stream = agent.stream_async(question)
 
-    texts = []
-    for i, content in enumerate(result["content"]):
-        logger.info(f"content[{i}]: {content}")
-        if "text" in content:
-            texts.append(content["text"])
+    current = ""
+    async for event in agent_stream:
+        text = ""            
+        if "data" in event:
+            text = event["data"]
+            logger.info(f"[data] {text}")
+            current += text
+            update_streaming_result(containers, current)
 
-    swarm_result = texts[-1]
-    logger.info(f"swarm_result: {swarm_result}")
-    
-    messages = []
-    if "🌟 Collective Knowledge:" in swarm_result:
-        json_results = swarm_result.split("🌟 Collective Knowledge:")[1].strip()
-        logger.info(f"JSON results: {json_results}")
-        
-        try:
-            json_data = json.loads(json_results)
-            for json_result in json_data:
-                content_text = json_result["content"]
-                if "Metrics:" in content_text:
-                    content_text = content_text.split("Metrics:")[0].strip()
-                
-                content = json_result["agent_id"]+': '+content_text
-                logger.info(f"content: {content}")
-                add_notification(containers, content)
+        elif "result" in event:
+            final = event["result"]                
+            message = final.message
+            if message:
+                content = message.get("content", [])
+                result = content[0].get("text", "")
+                logger.info(f"[result] {result}")
+                final_result = result
 
-                messages.append(content)
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON 파싱 오류: {e}")
-            add_notification(containers, json_results)
-    else:
-        json_results = swarm_result
-        logger.info("🌟 Collective Knowledge: 패턴을 찾을 수 없습니다.")
+        elif "current_tool_use" in event:
+            current_tool_use = event["current_tool_use"]
+            logger.info(f"current_tool_use: {current_tool_use}")
+            name = current_tool_use.get("name", "")
+            input = current_tool_use.get("input", "")
+            toolUseId = current_tool_use.get("toolUseId", "")
 
-    # summarizer agents
-    if chat.isKorean(question):
-        summarizer_prompt = f"""
-질문: <question>{question}</question>
+            text = f"name: {name}, input: {input}"
+            logger.info(f"[current_tool_use] {text}")
 
-아래 에이전트들의 생각을 종합하여 최종 답변을 생성하세요. 
-<opinion>{"\n\n".join(messages)}</opinion>
-"""
-    else:
-        summarizer_prompt = f"""
-Original query: {question}
+            if toolUseId not in tool_info_list: # new tool info
+                index += 1
+                current = ""
+                logger.info(f"new tool info: {toolUseId} -> {index}")
+                tool_info_list[toolUseId] = index
+                tool_name_list[toolUseId] = name
+                add_notification(containers, f"Tool: {name}, Input: {input}")
+            else: # overwrite tool info if already exists
+                logger.info(f"overwrite tool info: {toolUseId} -> {tool_info_list[toolUseId]}")
+                containers['notification'][tool_info_list[toolUseId]].info(f"Tool: {name}, Input: {input}")
 
-Please synthesize the following inputs from all agents into a comprehensive final solution:
+        elif "message" in event:
+            message = event["message"]
+            logger.info(f"[message] {message}")
 
-{"\n\n".join(messages)}
+            if "content" in message:
+                content = message["content"]
+                logger.info(f"tool content: {content}")
+                if "toolResult" in content[0]:
+                    toolResult = content[0]["toolResult"]
+                    toolUseId = toolResult["toolUseId"]
+                    toolContent = toolResult["content"]
+                    toolResult = toolContent[0].get("text", "")
+                    logger.info(f"[toolResult] {toolResult}, [toolUseId] {toolUseId}")
+                    add_notification(containers, f"Tool Result: {str(toolResult)}")
 
-Create a well-structured final answer that incorporates the research findings, 
-creative ideas, and addresses the critical feedback.
-"""
-    
-    model = strands_agent.get_model()
-    summarizer_agent = Agent(
-        model=model,
-        system_prompt=summarizer_prompt,
-    )    
-    agent_stream = summarizer_agent.stream_async(question)
-    result = await show_streams(agent_stream, containers)
-    logger.info(f"summarized result from swarm agents: {result}")
+                    if content:
+                        logger.info(f"content: {content}")                
+            
+        elif "contentBlockDelta" or "contentBlockStop" or "messageStop" or "metadata" in event:
+            pass
+
+        else:
+            logger.info(f"event: {event}")
 
     return result
