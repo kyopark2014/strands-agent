@@ -518,6 +518,10 @@ creative_result = await show_streams(result, containers)
 result = critical_agent.stream_async(question)
 critical_result = await show_streams(result, containers)
 
+research_messages = []
+creative_messages = []
+critical_messages = []
+
 creative_messages.append(f"From Research Agent: {research_result}")
 critical_messages.append(f"From Research Agent: {research_result}")
 summarizer_messages.append(f"From Research Agent: {research_result}")
@@ -564,6 +568,32 @@ creative ideas, and addresses the critical feedback.
 
 result = summarizer_agent.stream_async(summarizer_prompt)
 final_solution = await show_streams(result, containers)
+```
+
+research, creative, critical agent들은 병렬로 실행이 가능합니다. 따라서 아래와 같은 형태로도 구현할 수 있습니다.
+
+```python
+tasks = [
+    _research_agent_worker(research_agent, question, request_id),
+    _creative_agent_worker(creative_agent, question, request_id),
+    _critical_agent_worker(critical_agent, question, request_id)
+]
+results = await asyncio.gather(*tasks)
+research_result, creative_result, critical_result = results
+
+summarizer_agent = create_summarizer_agent(question, tools)
+summarizer_messages = []
+creative_messages.append(f"From Research Agent: {research_result}")
+critical_messages.append(f"From Research Agent: {research_result}")
+summarizer_messages.append(f"From Research Agent: {research_result}")
+
+research_messages.append(f"From Creative Agent: {creative_result}")
+critical_messages.append(f"From Creative Agent: {creative_result}")
+summarizer_messages.append(f"From Creative Agent: {creative_result}")
+
+research_messages.append(f"From Critical Agent: {critical_result}")
+creative_messages.append(f"From Critical Agent: {critical_result}")
+summarizer_messages.append(f"From Critical Agent: {critical_result}")
 ```
 
 #### Swarm Tool
