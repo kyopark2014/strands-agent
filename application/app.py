@@ -15,6 +15,7 @@ import strands_workflow
 import strands_graph
 import strands_code_swarm
 import strands_graph_builder
+import strands_plan_and_execute
 
 from langchain.docstore.document import Document
 
@@ -59,6 +60,9 @@ mode_descriptions = {
     ],
     "Strands Graph Builder": [
         "Graph Builder를 이용한 Workflow를 Multi-agent 구현합니다."
+    ],
+    "Strands Plan and Execute": [
+        "Plan and Execute를 이용한 Multi-agent Collaboration입니다. 여기에서는 Plan and Execute의 구조를 가지고 있습니다."
     ]
 }
 
@@ -74,7 +78,7 @@ with st.sidebar:
     
     # radio selection
     mode = st.radio(
-        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)", "Strands Supervisor", "Strands Swarm", "Strands Swarm Tool", "Strands Code Swarm", "Strands Workflow", "Strands Graph", "Strands Graph Builder"], index=0
+        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)", "Strands Supervisor", "Strands Swarm", "Strands Swarm Tool", "Strands Code Swarm", "Strands Workflow", "Strands Graph", "Strands Graph Builder", "Strands Plan and Execute"], index=0
     )   
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)
@@ -357,6 +361,9 @@ if prompt := st.chat_input("메시지를 입력하세요."):
 
         elif mode == 'Strands Graph Builder':
             response = asyncio.run(strands_graph_builder.run_graph_builder(prompt, containers))
+        
+        elif mode == 'Strands Plan and Execute':
+            response = asyncio.run(strands_plan_and_execute.run_plan_and_execute(prompt, containers))
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)

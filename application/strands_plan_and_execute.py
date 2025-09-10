@@ -85,7 +85,7 @@ async def show_result(graph_result, containers):
     
     return result
 
-async def run_graph_builder(question, containers):
+async def run_plan_and_execute(question, containers):
     global status_msg
     status_msg = []
 
@@ -93,53 +93,93 @@ async def run_graph_builder(question, containers):
     index = 0
 
     # Create specialized agents
-    financial_advisor = Agent(
-        name="financial_advisor", 
+    planner = Agent(
+        name="plan", 
         system_prompt=(
-            "You are a financial advisor focused on cost-benefit analysis, budget implications, and ROI calculations.\n" 
-            "Engage with other experts to build comprehensive financial perspectives."
+            "For the given objective, come up with a simple step by step plan."
+            "This plan should involve individual tasks, that if executed correctly will yield the correct answer. Do not add any superfluous steps."
+            "The result of the final step should be the final answer. Make sure that each step has all the information needed - do not skip steps."
+            "생성된 계획은 <plan> 태그로 감싸서 반환합니다."
         )
     )
-    technical_architect = Agent(
-        name="technical_architect", 
+    executor = Agent(
+        name="executor", 
         system_prompt=(
-            "You are a technical architect who evaluates feasibility, implementation challenges, and technical risks.\n" 
-            "Collaborate with other experts to ensure technical viability."
+            "You are an executor who executes the plan."
+            "주어진 plan중 아직 실행되지 않은 첫번째 task를 실행하고 결과를 리턴합니다."
+            "이전에 실행된 task가 있다면 그 다음 task를 실행합니다."
+            "모든 task가 완료되었다면 'All tasks completed'라고 리턴합니다."
         )
     )
-    market_researcher = Agent(
-        name="market_researcher", 
+    replanner = Agent(
+        name="replanner", 
         system_prompt=(
-            "You are a market researcher who analyzes market conditions, user needs, and competitive landscape.\n"
-            "Work with other experts to validate market opportunities."
+            "You are a replanner who replans the plan if the executor fails to execute the plan correctly."
+            "주어진 plan에서 실행된 내용을 제외하고 새로운 plan을 생성합니다."
+            "생성된 계획은 <plan> 태그로 감싸서 반환합니다."
+            "executor가 'All tasks completed'라고 리턴했다면, <complete>synthesize</complete> 태그로 감싸서 반환합니다."
         )
     )
-    risk_analyst = Agent(
-        name="risk_analyst", 
+    synthesizer = Agent(
+        name="synthesizer", 
         system_prompt=(
-            "You are a risk analyst who identifies potential risks, mitigation strategies, and compliance issues.\n" 
-            "Collaborate with other experts to ensure comprehensive risk assessment."
+            "You are a synthesizer who synthesizes the final result."
+            "You should synthesize the final result based on the plan and the executor's result."
+            "You should return the synthesized final result."
         )
     )
+
+    def decide_next_step(state):
+        print(f"===== decide_next_step CALLED =====")
+        print(f"state: {state}")
+        
+        # 실행 횟수 확인
+        if hasattr(state, 'results'):
+            print(f"[DEBUG] Current results keys: {list(state.results.keys())}")
+            for key, result in state.results.items():
+                print(f"[DEBUG] {key}: {result}")
+        
+        replanner_result = state.results.get("replanner")
+        print(f"replanner_result: {replanner_result}")
+
+        if not replanner_result:
+            print("[DEBUG] No replanner result, going to executor")
+            return "executor"
+
+        result_text = str(replanner_result.result)
+        print(f"result_text: {result_text}")
+
+        if "<complete>" in result_text:
+            should_synthesize = "synthesize" in result_text.lower()
+            print(f"[DEBUG] Found <complete>, should synthesize: {should_synthesize}")
+            if should_synthesize:
+                print("[DEBUG] Going to synthesizer")
+                return "synthesizer"
+            else:
+                print("[DEBUG] Going to executor")
+                return "executor"
+        else:
+            print("[DEBUG] No <complete> found, going to executor")
+            return "executor"
 
     # Build the graph
     builder = GraphBuilder()
 
     # Add nodes
-    builder.add_node(financial_advisor, "finance_expert")
-    builder.add_node(technical_architect, "tech_expert")
-    builder.add_node(market_researcher, "market_expert")
-    builder.add_node(risk_analyst, "risk_analyst")
-
-    # Add edges (dependencies)
-    builder.add_edge("finance_expert", "tech_expert")
-    builder.add_edge("finance_expert", "market_expert")
-    builder.add_edge("tech_expert", "risk_analyst")
-    builder.add_edge("market_expert", "risk_analyst")
+    builder.add_node(planner, "planner")
+    builder.add_node(executor, "executor")
+    builder.add_node(replanner, "replanner")
+    builder.add_node(synthesizer, "synthesizer")
 
     # Set entry points (optional - will be auto-detected if not specified)
-    builder.set_entry_point("finance_expert")
+    builder.set_entry_point("planner")
 
+    # Add edges (dependencies)
+    builder.add_edge("planner", "executor")
+    builder.add_edge("executor", "replanner")
+    builder.add_edge("replanner", "synthesizer", condition=lambda state: decide_next_step(state) == "synthesizer")
+    builder.add_edge("replanner", "executor", condition=lambda state: decide_next_step(state) == "executor")
+    
     # Build the graph
     graph = builder.build()
 
@@ -152,7 +192,7 @@ async def run_graph_builder(question, containers):
     if containers is not None:
         containers['notification'][index].markdown(final_result)
 
-    logger.info(f"Final result: {final_result}")
+    # logger.info(f"Final result: {final_result}")
 
     return final_result
 

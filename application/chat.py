@@ -851,7 +851,20 @@ def get_tool_info(tool_name, tool_content):
             json_data = json.loads(tool_content)
         
         logger.info(f"json_data: {json_data}")
-        payload = json_data["response"]["payload"]
+
+        if "content" in json_data:
+            content = json_data["content"]
+            logger.info(f"content: {content}")
+            if "result" in content:
+                result = content["result"]
+                logger.info(f"result: {result}")
+                
+        payload = {}
+        if "response" in json_data:
+            payload = json_data["response"]["payload"]
+        elif "content" in json_data:
+            payload = json_data
+
         if "content" in payload:
             payload_content = payload["content"]
             if "result" in payload_content:
@@ -1005,6 +1018,7 @@ async def run_strands_agent(query, strands_tools, mcp_servers, history_mode, con
         mcp_servers=mcp_servers, 
         historyMode=history_mode
     )
+    logger.info(f"tool_list: {tool_list}")    
 
     # run agent    
     final_result = current = ""
@@ -1030,23 +1044,23 @@ async def run_strands_agent(query, strands_tools, mcp_servers, history_mode, con
 
             elif "current_tool_use" in event:
                 current_tool_use = event["current_tool_use"]
-                # logger.info(f"current_tool_use: {current_tool_use}")
+                logger.info(f"current_tool_use: {current_tool_use}")
                 name = current_tool_use.get("name", "")
                 input = current_tool_use.get("input", "")
                 toolUseId = current_tool_use.get("toolUseId", "")
 
                 text = f"name: {name}, input: {input}"
-                # logger.info(f"[current_tool_use] {text}")
+                logger.info(f"[current_tool_use] {text}")
 
                 if toolUseId not in tool_info_list: # new tool info
                     index += 1
                     current = ""
-                    # logger.info(f"new tool info: {toolUseId} -> {index}")
+                    logger.info(f"new tool info: {toolUseId} -> {index}")
                     tool_info_list[toolUseId] = index
                     tool_name_list[toolUseId] = name
                     add_notification(containers, f"Tool: {name}, Input: {input}")
                 else: # overwrite tool info if already exists
-                    # logger.info(f"overwrite tool info: {toolUseId} -> {tool_info_list[toolUseId]}")
+                    logger.info(f"overwrite tool info: {toolUseId} -> {tool_info_list[toolUseId]}")
                     containers['notification'][tool_info_list[toolUseId]].info(f"Tool: {name}, Input: {input}")
 
             elif "message" in event:
@@ -1087,7 +1101,8 @@ async def run_strands_agent(query, strands_tools, mcp_servers, history_mode, con
         if references:
             ref = "\n\n### Reference\n"
             for i, reference in enumerate(references):
-                ref += f"{i+1}. [{reference['title']}]({reference['url']}), {reference['content']}...\n"    
+                content = reference['content'][:100].replace("\n", "")
+                ref += f"{i+1}. [{reference['title']}]({reference['url']}), {content}...\n"    
             final_result += ref
 
         if containers is not None:
