@@ -363,7 +363,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             response = asyncio.run(strands_graph_builder.run_graph_builder(prompt, containers))
         
         elif mode == 'Strands Plan and Execute':
-            response = asyncio.run(strands_plan_and_execute.run_plan_and_execute(prompt, containers))
+            response = asyncio.run(strands_plan_and_execute.run_plan_and_execute_with_graph(prompt, containers))
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)
