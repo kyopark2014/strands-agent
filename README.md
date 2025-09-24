@@ -932,3 +932,8 @@ MCP로 wikipedia를 설정하고 "strand에 대해 설명해주세요."라고 �
 [Drug Discovery Agent based on Amazon Bedrock](https://github.com/hsr87/drug-discovery-agent)
 
 [Strands Agent - Swarm](https://strandsagents.com/latest/user-guide/concepts/multi-agent/swarm/)
+
+[Strands Agent Streamlit Demo](https://github.com/NB3025/strands-streamlit-chat-demo)
+
+
+
