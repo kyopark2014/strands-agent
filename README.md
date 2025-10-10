@@ -767,7 +767,28 @@ builder.add_edge("replanner", "executor", condition=lambda state: decide_next_st
 
 <img width="400" alt="image" src="https://github.com/user-attachments/assets/3346072b-510a-42a5-8d6d-07250683de72" />
 
-[graph_loops_example.py](https://github.com/strands-agents/docs/blob/main/docs/examples/python/graph_loops_example.py)
+상세한 코드는 [strands_graph_with_loop.py](./application/strands_graph_with_loop.py)을 참조합니다. 이 코드는 [graph_loops_example.py](https://github.com/strands-agents/docs/blob/main/docs/examples/python/graph_loops_example.py)을 참조하였습니다.
+
+```python
+checker = QualityChecker(approval_after=2)
+
+builder = GraphBuilder()
+builder.add_node(writer, "writer")
+builder.add_node(checker, "checker") 
+builder.add_node(finalizer, "finalizer")
+
+builder.add_edge("writer", "checker")
+builder.add_edge("checker", "writer", condition=needs_revision)
+builder.add_edge("checker", "finalizer", condition=is_approved)
+builder.set_entry_point("writer")
+
+graph = builder.build()
+
+result = await graph.invoke_async(question)
+```
+
+
+
 
 ## Memory 활용하기
 
