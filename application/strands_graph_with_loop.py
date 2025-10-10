@@ -5,8 +5,11 @@ import mcp_config
 from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
 
-from strands.multiagent import GraphBuilder
 from strands import Agent
+from strands.multiagent import GraphBuilder, MultiAgentBase, MultiAgentResult
+from strands.agent.agent_result import AgentResult
+from strands.types.content import ContentBlock, Message
+from strands.multiagent.base import NodeResult, Status
 
 logging.basicConfig(
     level=logging.INFO,  
@@ -186,11 +189,6 @@ async def show_streams(agent_stream, containers):
     logger.info(f"show_streams completed, final result: {result}")
     logger.info(f"show_streams result type: {type(result)}")
     return result
-
-from strands.multiagent import GraphBuilder, MultiAgentBase, MultiAgentResult
-from strands.agent.agent_result import AgentResult
-from strands.types.content import ContentBlock, Message
-from strands.multiagent.base import NodeResult, Status
 
 class QualityChecker(MultiAgentBase):
     """Custom node that evaluates content quality."""
