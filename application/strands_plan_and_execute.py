@@ -324,6 +324,7 @@ async def run_plan_and_execute_with_graph(question, containers):
                 "You are a replanner who replans the plan if the executor fails to execute the plan correctly."
                 "주어진 plan에서 실행된 내용을 제외하고 새로운 plan을 생성합니다."
                 "생성된 계획은 <plan> 태그로 감싸서 반환합니다."
+                "작업이 완료되어 더이상 계획이 없을때에는 <complete>synthesizer</complete>을 반환합니다."
             )
         )
         synthesizer = Agent(
@@ -383,9 +384,9 @@ async def run_plan_and_execute_with_graph(question, containers):
         # Add edges (dependencies)
         builder.add_edge("planner", "executor")
 
-        # builder.add_edge("executor", "replanner")
-        # builder.add_edge("replanner", "synthesizer", condition=lambda state: decide_next_step(state) == "synthesizer")
-        # builder.add_edge("replanner", "executor", condition=lambda state: decide_next_step(state) == "executor")
+        builder.add_edge("executor", "replanner")
+        builder.add_edge("replanner", "synthesizer", condition=lambda state: decide_next_step(state) == "synthesizer")
+        builder.add_edge("replanner", "executor", condition=lambda state: decide_next_step(state) == "executor")
         
         # Build the graph
         graph = builder.build()

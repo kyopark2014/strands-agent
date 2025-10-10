@@ -19,7 +19,7 @@ from langchain_aws import ChatBedrock
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from io import BytesIO
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level

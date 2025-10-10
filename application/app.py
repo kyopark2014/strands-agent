@@ -17,7 +17,7 @@ import strands_code_swarm
 import strands_graph_builder
 import strands_plan_and_execute
 
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 
 logging.basicConfig(
     level=logging.INFO,  

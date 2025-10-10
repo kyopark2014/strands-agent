@@ -8,7 +8,7 @@ import info
 from botocore.config import Config
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 from langchain_aws import ChatBedrock
 from langchain_aws import AmazonKnowledgeBasesRetriever
 from urllib import parse
