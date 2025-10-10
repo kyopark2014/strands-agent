@@ -738,6 +738,10 @@ async def economic_department(query: str) -> str:
 
 [strands_plan_and_execute.py](./application/strands_plan_and_execute.py)에서는 plan and execute pattern의 agent를 구현합니다. "planner"에서 먼저 plan을 생성한 후에 executer가 결과를 구합니다. 이때, 모든 plan이 실행이 안되었다면 replanner가 새로운 계획을 세웁니다. 만약 모든 plan이 실행이 되었다면 synthesizer로 전환되어 최종 결과를 얻습니다. 
 
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/5f9462c9-c3d5-4bd2-a1e0-69334a69a70e" />
+
+상세한 코드는 [strands_plan_and_execute.py](./application/strands_plan_and_execute.py)를 참조합니다.
+
 ```python
 builder = GraphBuilder()
 
