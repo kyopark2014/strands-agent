@@ -734,6 +734,37 @@ async def economic_department(query: str) -> str:
     return result
 ```
 
+### Graph with Loops: Plan and Execute
+
+[strands_plan_and_execute.py](./application/strands_plan_and_execute.py)에서는 plan and execute pattern의 agent를 구현합니다. "planner"에서 먼저 plan을 생성한 후에 executer가 결과를 구합니다. 이때, 모든 plan이 실행이 안되었다면 replanner가 새로운 계획을 세웁니다. 만약 모든 plan이 실행이 되었다면 synthesizer로 전환되어 최종 결과를 얻습니다. 
+
+```python
+builder = GraphBuilder()
+
+# Add nodes
+builder.add_node(planner, "planner")
+builder.add_node(executor, "executor")
+builder.add_node(replanner, "replanner")
+builder.add_node(synthesizer, "synthesizer")
+
+# Set entry points (optional - will be auto-detected if not specified)
+builder.set_entry_point("planner")
+
+# Add edges (dependencies)
+builder.add_edge("planner", "executor")
+builder.add_edge("executor", "replanner")
+builder.add_edge("replanner", "synthesizer", condition=lambda state: decide_next_step(state) == "synthesizer")
+builder.add_edge("replanner", "executor", condition=lambda state: decide_next_step(state) == "executor")
+```
+
+### Graph with Loops: Multi-Agent Feedback Cycles
+
+[Graph with Loops - Multi-Agent Feedback Cycles](https://strandsagents.com/1.x/documentation/docs/examples/python/graph_loops_example/)을 이용해 아래와 같은 feedback loop을 구현합니다.
+
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/3346072b-510a-42a5-8d6d-07250683de72" />
+
+
+
 ## Memory 활용하기
 
 Chatbot은 연속적인 사용자의 상호작용을 통해 사용자의 경험을 향상시킬수 있습니다. 이를 위해 이전 대화의 내용을 새로운 대화에서 활용할 수 있어야하며, 일반적으로 chatbot은 sliding window를 이용해 새로운 transaction마다 이전 대화내용을 context로 제공해야 했습니다. 여기에서는 필요한 경우에만 이전 대화내용을 참조할 수 있도록 short term/long term 메모리를 MCP를 이용해 활용합니다. 이렇게 하면 context에 불필요한 이전 대화가 포함되지 않아서 사용자의 의도를 명확히 반영하고 비용도 최적화 할 수 있습니다. 
@@ -916,6 +947,8 @@ MCP로 wikipedia를 설정하고 "strand에 대해 설명해주세요."라고 �
 
 
 ## Reference
+
+[Strands Python Example](https://github.com/strands-agents/docs/tree/main/docs/examples/python)
 
 [Strands Agents SDK](https://strandsagents.com/0.1.x/)
 
