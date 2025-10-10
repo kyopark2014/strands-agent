@@ -187,7 +187,41 @@ async def show_streams(agent_stream, containers):
     logger.info(f"show_streams result type: {type(result)}")
     return result
 
-async def run_plan_and_execute(question, containers):
+from strands.multiagent import GraphBuilder, MultiAgentBase, MultiAgentResult
+from strands.agent.agent_result import AgentResult
+from strands.types.content import ContentBlock, Message
+from strands.multiagent.base import NodeResult, Status
+
+class QualityChecker(MultiAgentBase):
+    """Custom node that evaluates content quality."""
+    
+    def __init__(self, approval_after: int = 2):
+        super().__init__()
+        self.approval_after = approval_after
+        self.iteration = 0
+        self.name = "checker"
+        
+    async def invoke_async(self, task, invocation_state=None, **kwargs):
+        self.iteration += 1
+        approved = self.iteration >= self.approval_after
+        
+        msg = f"✅ Iteration {self.iteration}: APPROVED" if approved else f"⚠️ Iteration {self.iteration}: NEEDS REVISION"
+        
+        agent_result = AgentResult(
+            stop_reason="end_turn",
+            message=Message(role="assistant", content=[ContentBlock(text=msg)]),
+            metrics=None,
+            state={"approved": approved, "iteration": self.iteration}
+        )
+        
+        return MultiAgentResult(
+            status=Status.COMPLETED,
+            results={self.name: NodeResult(result=agent_result, execution_time=10, status=Status.COMPLETED)},
+            execution_count=1,
+            execution_time=10
+        )
+
+async def run_graph_with_loop(question, containers):
     global status_msg
     status_msg = []
 
@@ -224,173 +258,75 @@ async def run_plan_and_execute(question, containers):
         tool_list = get_tool_list(tools)
         logger.info(f"tools loaded: {tool_list}")
 
-        # Create specialized agents
-        planner = Agent(
-            name="plan", 
-            system_prompt=(
-                "For the given objective, come up with a simple step by step plan."
-                "This plan should involve individual tasks, that if executed correctly will yield the correct answer. Do not add any superfluous steps."
-                "The result of the final step should be the final answer. Make sure that each step has all the information needed - do not skip steps."
-                "생성된 계획은 <plan> 태그로 감싸서 반환합니다."
-            )
+        writer = Agent(
+            name="writer",
+            system_prompt="You are a content writer. Write or improve content based on the task. Keep responses concise."
         )
 
-        #agent_stream = await planner.stream_async(question)
-        #result = await show_result(agent_stream, containers)
-        plan = planner(question)
-        logger.info(f"planner result: {plan}")
-
-        executor = Agent(
-            name="executor", 
-            system_prompt=(
-                "You are an executor who executes the plan."
-                "주어진 질문에 답변하기 위하여 다음의 plan을 순차적으로 실행합니다."
-                "tavily-search 도구를 사용하여 정보를 수집합니다."
-                f"<plan>{plan}</plan>"
-            ),
-            tools=tools
+        finalizer = Agent(
+            name="finalizer", 
+            system_prompt="Polish the approved content into a professional format with a title."
         )
 
-        result = executor(question)
-        
-        if containers is not None:
-            containers['notification'][index].markdown(result)
+        checker = QualityChecker(approval_after=2)
 
-    return result
-
-# currently cyclic graph is not supported (Sep. 10 2025)
-async def run_plan_and_execute_with_graph(question, containers):
-    global status_msg
-    status_msg = []
-
-    global index
-    index = 0
-
-    tool = "tavily-search"
-    config = mcp_config.load_config(tool)
-    mcp_servers = config["mcpServers"]
-    logger.info(f"mcp_servers: {mcp_servers}")
-
-    mcp_client = None
-    for server_name, server_config in mcp_servers.items():
-        logger.info(f"server_name: {server_name}")
-        logger.info(f"server_config: {server_config}")
-        env = server_config["env"] if "env" in server_config else None
-
-        mcp_client = MCPClient(lambda: stdio_client(
-            StdioServerParameters(
-                command=server_config["command"], 
-                args=server_config["args"], 
-                env=env
-            )
-        ))
-        break
-
-    with mcp_client as client:
-        mcp_tools = client.list_tools_sync()
-        logger.info(f"mcp_tools: {mcp_tools}")
-        
-        tools = []
-        tools.extend(mcp_tools)
-
-        tool_list = get_tool_list(tools)
-        logger.info(f"tools loaded: {tool_list}")
-
-        # Create specialized agents
-        planner = Agent(
-            name="plan", 
-            system_prompt=(
-                "For the given objective, come up with a simple step by step plan."
-                "This plan should involve individual tasks, that if executed correctly will yield the correct answer. Do not add any superfluous steps."
-                "The result of the final step should be the final answer. Make sure that each step has all the information needed - do not skip steps."
-                "생성된 계획은 <plan> 태그로 감싸서 반환합니다."
-            )
-        )
-
-        executor = Agent(
-            name="executor", 
-            system_prompt=(
-                "You are an executor who executes the plan."
-                "주어진 plan을 순차적으로 실행합니다."
-                # "모든 task가 완료되었다면 'All tasks completed'라고 리턴합니다."
-            ),
-            tools=tools
-        )
-        
-        replanner = Agent(
-            name="replanner", 
-            system_prompt=(
-                "You are a replanner who replans the plan if the executor fails to execute the plan correctly."
-                "주어진 plan에서 실행된 내용을 제외하고 새로운 plan을 생성합니다."
-                "생성된 계획은 <plan> 태그로 감싸서 반환합니다."
-                "작업이 완료되어 더이상 계획이 없을때에는 <complete>synthesizer</complete>을 반환합니다."
-            )
-        )
-        synthesizer = Agent(
-            name="synthesizer", 
-            system_prompt=(
-                "You are a synthesizer who synthesizes the final result."
-                "You should synthesize the final result based on the plan and the executor's result."
-                "You should return the synthesized final result."
-            )
-        )
-
-        def decide_next_step(state):
-            print(f"===== decide_next_step CALLED =====")
-            print(f"state: {state}")
-            
-            # 실행 횟수 확인
-            if hasattr(state, 'results'):
-                print(f"[DEBUG] Current results keys: {list(state.results.keys())}")
-                for key, result in state.results.items():
-                    print(f"[DEBUG] {key}: {result}")
-            
-            replanner_result = state.results.get("replanner")
-            print(f"replanner_result: {replanner_result}")
-
-            if not replanner_result:
-                print("[DEBUG] No replanner result, going to executor")
-                return "executor"
-
-            result_text = str(replanner_result.result)
-            print(f"result_text: {result_text}")
-
-            if "<complete>" in result_text:
-                should_synthesize = "synthesize" in result_text.lower()
-                print(f"[DEBUG] Found <complete>, should synthesize: {should_synthesize}")
-                if should_synthesize:
-                    print("[DEBUG] Going to synthesizer")
-                    return "synthesizer"
-                else:
-                    print("[DEBUG] Going to executor")
-                    return "executor"
-            else:
-                print("[DEBUG] No <complete> found, going to executor")
-                return "executor"
-
-        # Build the graph
         builder = GraphBuilder()
+        builder.add_node(writer, "writer")
+        builder.add_node(checker, "checker") 
+        builder.add_node(finalizer, "finalizer")
 
-        # Add nodes
-        builder.add_node(planner, "planner")
-        builder.add_node(executor, "executor")
-        builder.add_node(replanner, "replanner")
-        builder.add_node(synthesizer, "synthesizer")
+        builder.add_edge("writer", "checker")
 
-        # Set entry points (optional - will be auto-detected if not specified)
-        builder.set_entry_point("planner")
-
-        # Add edges (dependencies)
-        builder.add_edge("planner", "executor")
-
-        builder.add_edge("executor", "replanner")
-        builder.add_edge("replanner", "synthesizer", condition=lambda state: decide_next_step(state) == "synthesizer")
-        builder.add_edge("replanner", "executor", condition=lambda state: decide_next_step(state) == "executor")
+        def needs_revision(state):
+            checker_result = state.results.get("checker")
+            if not checker_result:
+                return False
+            multi_result = checker_result.result
+            if hasattr(multi_result, 'results') and 'checker' in multi_result.results:
+                agent_result = multi_result.results['checker'].result
+                if hasattr(agent_result, 'state'):
+                    return not agent_result.state.get("approved", False)
+            return True
         
-        # Build the graph
+        def is_approved(state):
+            checker_result = state.results.get("checker")
+            if not checker_result:
+                return False
+            multi_result = checker_result.result
+            if hasattr(multi_result, 'results') and 'checker' in multi_result.results:
+                agent_result = multi_result.results['checker'].result
+                if hasattr(agent_result, 'state'):
+                    return agent_result.state.get("approved", False)
+            return False
+        
+        builder.add_edge("checker", "writer", condition=needs_revision)
+        builder.add_edge("checker", "finalizer", condition=is_approved)
+        
+        builder.set_entry_point("writer")
+        builder.set_max_node_executions(10)
+        builder.set_execution_timeout(60)
+        builder.reset_on_revisit(True)
+
         graph = builder.build()
 
         result = await graph.invoke_async(question)
+
+        # Show execution path
+        logger.info(f"\nExecution path: {' -> '.join([node.node_id for node in result.execution_order])}")
+        
+        # Show loop statistics
+        node_visits = {}
+        for node in result.execution_order:
+            node_visits[node.node_id] = node_visits.get(node.node_id, 0) + 1
+        
+        loops = [f"{node_id} ({count}x)" for node_id, count in node_visits.items() if count > 1]
+        if loops:
+            logger.info(f"Loops detected: {', '.join(loops)}")
+        
+        # Show final result
+        if "finalizer" in result.results:
+            logger.info(f"\n✨ Final Result:\n{result.results['finalizer'].result}")
+
         final_result = await show_result(result, containers)
         logger.info(f"final_result: {final_result}")
 
