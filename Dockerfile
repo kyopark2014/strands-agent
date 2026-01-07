@@ -3,7 +3,7 @@ FROM --platform=linux/amd64 python:3.13-slim
 WORKDIR /app
 
 RUN pip install streamlit==1.41.0 streamlit-chat pandas numpy boto3 
-RUN pip install langchain_aws langchain langchain_community langchain_experimental
+RUN pip install langchain_aws langchain langchain_community langchain_experimental langchain-text-splitters
 RUN pip install mcp wikipedia
 RUN pip install strands-agents strands-agents-tools
 RUN pip install aioboto3 opensearch-py
