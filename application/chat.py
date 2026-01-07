@@ -17,7 +17,7 @@ from botocore.config import Config
 from urllib import parse
 from langchain_aws import ChatBedrock
 from langchain_core.prompts import ChatPromptTemplate
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from io import BytesIO
 from langchain_core.documents import Document
 
