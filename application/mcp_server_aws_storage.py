@@ -156,7 +156,6 @@ async def get_efs_usage(
 ######################################
 
 if __name__ =="__main__":
-    print(f"###### main ######")
     mcp.run(transport="stdio")
 
 

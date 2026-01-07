@@ -354,5 +354,4 @@ def aws_cli(
         }
     
 if __name__ =="__main__":
-    print(f"###### main ######")
     mcp.run(transport="stdio")    
