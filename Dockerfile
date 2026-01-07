@@ -2,6 +2,14 @@ FROM --platform=linux/amd64 python:3.13-slim
 
 WORKDIR /app
 
+# Install Node.js and npm (for npx)
+RUN apt-get update && \
+    apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN pip install streamlit==1.41.0 streamlit-chat pandas numpy boto3 
 RUN pip install langchain_aws langchain langchain_community langchain_experimental langchain-text-splitters
 RUN pip install mcp wikipedia
