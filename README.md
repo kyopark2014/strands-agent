@@ -1010,4 +1010,4 @@ MCP로 wikipedia를 설정하고 "strand에 대해 설명해주세요."라고 �
 
 [Agentic AI 펀드 매니저](https://github.com/ksgsslee/investment_advisor_strands)
 
-
+[Workshop - Strands SDK와 AgentCore를 활용한 에이전틱 AI](https://catalog.workshops.aws/strands/ko-KR)
