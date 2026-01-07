@@ -1,0 +1,117 @@
+2026-01-07 20:47:51 - INFO - ============================================================
+2026-01-07 20:47:51 - INFO - Starting AWS Infrastructure Deployment
+2026-01-07 20:47:51 - INFO - ============================================================
+2026-01-07 20:47:51 - INFO - Project: strands
+2026-01-07 20:47:51 - INFO - Region: us-west-2
+2026-01-07 20:47:51 - INFO - Account ID: 262976740991
+2026-01-07 20:47:51 - INFO - Bucket Name: storage-for-strands-262976740991-us-west-2
+2026-01-07 20:47:51 - INFO - ============================================================
+2026-01-07 20:47:51 - INFO - [1/9] Creating S3 bucket: storage-for-strands-262976740991-us-west-2
+2026-01-07 20:47:53 - INFO - ✓ S3 bucket created successfully: storage-for-strands-262976740991-us-west-2
+2026-01-07 20:47:53 - INFO - [2/9] Creating Knowledge Base IAM role
+2026-01-07 20:47:54 - INFO - ✓ IAM role created: role-knowledge-base-for-strands-us-west-2
+2026-01-07 20:47:55 - INFO - [2/9] Creating Agent IAM role
+2026-01-07 20:47:55 - INFO - ✓ IAM role created: role-agent-for-strands-us-west-2
+2026-01-07 20:47:56 - INFO - [2/9] Creating EC2 IAM role
+2026-01-07 20:47:57 - INFO - ✓ IAM role created: role-ec2-for-strands-us-west-2
+2026-01-07 20:48:02 - INFO - [2/9] Creating Lambda RAG IAM role
+2026-01-07 20:48:02 - INFO - ✓ IAM role created: role-lambda-rag-for-strands-us-west-2
+2026-01-07 20:48:03 - INFO - [2/9] Creating AgentCore Memory IAM role
+2026-01-07 20:48:03 - INFO - ✓ IAM role created: role-agentcore-memory-for-strands-us-west-2
+2026-01-07 20:48:04 - INFO - [3/9] Creating Secrets Manager secrets
+2026-01-07 20:48:04 - INFO - Please enter API keys when prompted (press Enter to skip and leave empty):
+2026-01-07 20:48:04 - INFO - Enter credential of openweathermap-strands (Weather API Key - OpenWeatherMap):
+2026-01-07 20:48:34 - INFO -   ✓ Created secret: openweathermap-strands
+2026-01-07 20:48:35 - INFO - Enter credential of langsmithapikey-strands (LangSmith API Key):
+2026-01-07 20:48:42 - INFO -   ✓ Created secret: langsmithapikey-strands
+2026-01-07 20:48:42 - INFO - Enter credential of tavilyapikey-strands (Tavily API Key):
+2026-01-07 20:48:50 - INFO -   ✓ Created secret: tavilyapikey-strands
+2026-01-07 20:48:51 - INFO - Enter credential of perplexityapikey-strands (Perplexity API Key):
+2026-01-07 20:49:06 - INFO -   ✓ Created secret: perplexityapikey-strands
+2026-01-07 20:49:06 - INFO - Enter credential of firecrawlapikey-strands (Firecrawl API Key):
+2026-01-07 20:49:24 - INFO -   ✓ Created secret: firecrawlapikey-strands
+2026-01-07 20:49:24 - INFO - Enter credential of novaactapikey-strands (Nova Act API Key):
+2026-01-07 20:49:36 - INFO -   ✓ Created secret: novaactapikey-strands
+2026-01-07 20:49:36 - INFO - Enter credential of notionapikey-strands (Notion API Key):
+2026-01-07 20:49:46 - INFO -   ✓ Created secret: notionapikey-strands
+2026-01-07 20:49:46 - INFO - ✓ Created 7 secrets
+2026-01-07 20:49:46 - INFO - [4/9] Creating OpenSearch Serverless collection
+2026-01-07 20:49:53 - INFO -   Waiting for collection to be active (this may take a few minutes)...
+2026-01-07 20:50:54 - INFO - ✓ OpenSearch collection created: strands
+2026-01-07 20:50:54 - INFO -   Endpoint: https://ikbz9t7svgegy11at013.us-west-2.aoss.amazonaws.com
+2026-01-07 20:50:54 - INFO - OpenSearch collection created: {'arn': 'arn:aws:aoss:us-west-2:262976740991:collection/ikbz9t7svgegy11at013', 'endpoint': 'https://ikbz9t7svgegy11at013.us-west-2.aoss.amazonaws.com'}
+2026-01-07 20:50:54 - INFO - [4.5/9] Creating Knowledge Base with OpenSearch collection
+2026-01-07 20:50:54 - INFO -   Creating vector index in OpenSearch collection...
+2026-01-07 20:50:54 - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2026-01-07 20:50:55 - INFO -   ✓ Vector index 'strands' created successfully
+2026-01-07 20:50:55 - INFO -   Waiting for index to be ready...
+2026-01-07 20:51:25 - INFO -   Checking if Knowledge Base already exists...
+2026-01-07 20:51:26 - INFO -   Knowledge Base does not exist. Creating new one...
+2026-01-07 20:51:27 - INFO - ✓ Knowledge Base created: U805LIHY3G
+2026-01-07 20:51:27 - INFO -   Waiting for Knowledge Base to be active...
+2026-01-07 20:51:37 - INFO -   Knowledge Base is now active
+2026-01-07 20:51:37 - INFO -   Creating data source...
+2026-01-07 20:51:38 - INFO -   ✓ Data source created: N7S7IWTRRL
+2026-01-07 20:51:38 - INFO - [5/9] Creating VPC and networking resources
+2026-01-07 20:51:38 - INFO - Using CIDR block: 10.23.0.0/16
+2026-01-07 20:51:39 - INFO - No existing VPC found, creating new VPC...
+2026-01-07 20:51:41 - INFO -   No Internet Gateway found. Creating Internet Gateway...
+2026-01-07 20:51:41 - INFO -   Created and attached Internet Gateway: igw-0b42ed97c18450bb2
+2026-01-07 20:51:43 - INFO -   Allocating Elastic IP for NAT Gateway...
+2026-01-07 20:51:44 - INFO -   Creating NAT Gateway (this may take a few minutes)...
+2026-01-07 20:51:45 - INFO -   Waiting for NAT Gateway to be available...
+2026-01-07 20:53:28 - INFO - ✓ VPC created: vpc-0e97bf54eecd3175b
+2026-01-07 20:53:28 - INFO - [6/9] Creating Application Load Balancer
+2026-01-07 20:53:31 - INFO - ✓ ALB created: alb-for-strands-1041520390.us-west-2.elb.amazonaws.com
+2026-01-07 20:53:31 - INFO - [7/9] Creating CloudFront distribution
+2026-01-07 20:53:32 - WARNING - Could not get reference distribution config: An error occurred (NoSuchDistribution) when calling the GetDistributionConfig operation: The specified distribution does not exist.
+2026-01-07 20:53:33 - INFO - ✓ CloudFront distribution created: d1bququ8chc6h3.cloudfront.net
+2026-01-07 20:53:33 - INFO -   Distribution ID: E3SRAP6TMHWHEC
+2026-01-07 20:53:33 - WARNING -   Note: CloudFront distribution may take 15-20 minutes to deploy
+2026-01-07 20:53:33 - INFO - [8/9] Creating EC2 instance
+2026-01-07 20:53:38 - INFO - ✓ EC2 instance created: i-0f4e92353d164072d
+2026-01-07 20:53:38 - INFO -   Instance type: t3.medium
+2026-01-07 20:53:38 - INFO -   Deployed in private subnet: subnet-0dfa1f997ace799fd
+2026-01-07 20:53:38 - INFO -   User data script configured for application deployment
+2026-01-07 20:53:38 - INFO - [9/9] Creating ALB target group and listener
+2026-01-07 20:53:55 - INFO -   ✓ Registered EC2 instance i-0f4e92353d164072d to target group
+2026-01-07 20:53:56 - INFO -   ✓ Created rule for custom header
+2026-01-07 20:53:56 - INFO - ✓ ALB target group and listener created
+2026-01-07 20:53:56 - INFO -   Target group: arn:aws:elasticloadbalancing:us-west-2:262976740991:targetgroup/TG-for-strands/b8f492dfb498fb57
+2026-01-07 20:53:56 - INFO -   Listener: arn:aws:elasticloadbalancing:us-west-2:262976740991:listener/app/alb-for-strands/16432894c37e5103/56727442f1ea9c18
+2026-01-07 20:53:56 - INFO - 
+2026-01-07 20:53:56 - INFO - ============================================================
+2026-01-07 20:53:56 - INFO - Infrastructure Deployment Completed Successfully!
+2026-01-07 20:53:56 - INFO - ============================================================
+2026-01-07 20:53:56 - INFO - Summary:
+2026-01-07 20:53:56 - INFO -   S3 Bucket: storage-for-strands-262976740991-us-west-2
+2026-01-07 20:53:56 - INFO -   VPC ID: vpc-0e97bf54eecd3175b
+2026-01-07 20:53:56 - INFO -   Public Subnets: subnet-0726a2b5395bb9f6e, subnet-0ab984a58bf25a329
+2026-01-07 20:53:56 - INFO -   Private Subnets: subnet-0dfa1f997ace799fd, subnet-0dedc564e83c59bf3
+2026-01-07 20:53:56 - INFO -   ALB DNS: http://alb-for-strands-1041520390.us-west-2.elb.amazonaws.com/
+2026-01-07 20:53:56 - INFO -   CloudFront Domain: https://d1bququ8chc6h3.cloudfront.net
+2026-01-07 20:53:56 - INFO -   EC2 Instance ID: i-0f4e92353d164072d (deployed in private subnet)
+2026-01-07 20:53:56 - INFO -   OpenSearch Endpoint: https://ikbz9t7svgegy11at013.us-west-2.aoss.amazonaws.com
+2026-01-07 20:53:56 - INFO -   Knowledge Base ID: U805LIHY3G
+2026-01-07 20:53:56 - INFO -   Knowledge Base Role: arn:aws:iam::262976740991:role/role-knowledge-base-for-strands-us-west-2
+2026-01-07 20:53:56 - INFO -   AgentCore Memory Role: arn:aws:iam::262976740991:role/role-agentcore-memory-for-strands-us-west-2
+2026-01-07 20:53:56 - INFO - 
+2026-01-07 20:53:56 - INFO - Total deployment time: 6.09 minutes
+2026-01-07 20:53:56 - INFO - ============================================================
+2026-01-07 20:53:56 - INFO - Note: CloudFront distribution may take 15-20 minutes to fully deploy
+2026-01-07 20:53:56 - INFO - Note: EC2 instance user data script will install and start the application
+2026-01-07 20:53:56 - INFO - ============================================================
+2026-01-07 20:53:56 - INFO - OpenSearch Collection ARN: arn:aws:aoss:us-west-2:262976740991:collection/ikbz9t7svgegy11at013
+2026-01-07 20:53:56 - INFO - OpenSearch Collection Endpoint: https://ikbz9t7svgegy11at013.us-west-2.aoss.amazonaws.com
+2026-01-07 20:53:56 - INFO - ✓ Updated application/config.json
+2026-01-07 20:53:56 - INFO - ============================================================
+2026-01-07 20:53:56 - INFO - 
+2026-01-07 20:53:56 - INFO - ============================================================
+2026-01-07 20:53:56 - INFO -   IMPORTANT: CloudFront Domain Address
+2026-01-07 20:53:56 - INFO - ============================================================
+2026-01-07 20:53:56 - INFO -  CloudFront URL: https://d1bququ8chc6h3.cloudfront.net
+2026-01-07 20:53:56 - INFO - 
+2026-01-07 20:53:56 - INFO - Note: CloudFront distribution and agent application on EC2 instance may take 15-20 minutes to fully deploy
+2026-01-07 20:53:56 - INFO -       Once deployed, you can access your application at the URL above
+2026-01-07 20:53:56 - INFO - ============================================================
+2026-01-07 20:53:56 - INFO - 
