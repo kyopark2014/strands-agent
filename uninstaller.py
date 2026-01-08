@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from botocore.exceptions import ClientError
 
 # Configuration
-project_name = "strands"
+project_name = "strands" # at least 3 characters
 region = "us-west-2"
 
 sts_client = boto3.client("sts", region_name=region)
@@ -308,11 +308,37 @@ def delete_single_vpc(vpc_id: str):
             logger.info(f"    ✓ Deleted internet gateway: {igw['InternetGatewayId']}")
         
         # Delete VPC with retry and complete cleanup
+        vpc_deleted = False
         for attempt in range(3):
             try:
                 ec2_client.delete_vpc(VpcId=vpc_id)
-                logger.info(f"  ✓ Deleted VPC: {vpc_id}")
-                break
+                logger.info(f"  ✓ VPC deletion initiated: {vpc_id}")
+                
+                # Wait and verify VPC deletion
+                logger.info(f"    Waiting for VPC {vpc_id} to be deleted...")
+                max_wait = 120  # Wait up to 2 minutes
+                waited = 0
+                while waited < max_wait:
+                    try:
+                        vpcs = ec2_client.describe_vpcs(VpcIds=[vpc_id])
+                        if not vpcs.get("Vpcs"):
+                            vpc_deleted = True
+                            logger.info(f"  ✓ VPC {vpc_id} successfully deleted")
+                            break
+                        time.sleep(5)
+                        waited += 5
+                    except ClientError as check_error:
+                        if check_error.response["Error"]["Code"] == "InvalidVpcID.NotFound":
+                            vpc_deleted = True
+                            logger.info(f"  ✓ VPC {vpc_id} successfully deleted")
+                            break
+                        raise
+                
+                if vpc_deleted:
+                    break
+                else:
+                    logger.warning(f"    VPC {vpc_id} deletion timed out after {max_wait} seconds")
+                    
             except ClientError as e:
                 if e.response["Error"]["Code"] == "DependencyViolation":
                     if attempt < 2:
@@ -345,13 +371,29 @@ def delete_single_vpc(vpc_id: str):
                         
                         time.sleep(30)
                     else:
-                        logger.warning(f"  Could not delete VPC {vpc_id}: {e}")
+                        logger.error(f"  ✗ Failed to delete VPC {vpc_id} after 3 attempts: {e}")
                         break
+                elif e.response["Error"]["Code"] == "InvalidVpcID.NotFound":
+                    # VPC already deleted
+                    vpc_deleted = True
+                    logger.info(f"  ✓ VPC {vpc_id} already deleted")
+                    break
                 else:
-                    logger.warning(f"  Could not delete VPC {vpc_id}: {e}")
+                    logger.error(f"  ✗ Failed to delete VPC {vpc_id}: {e}")
                     break
         
-        logger.info(f"  ✓ VPC {vpc_id} deleted")
+        if not vpc_deleted:
+            logger.error(f"  ✗ VPC {vpc_id} was not deleted. Please check dependencies manually.")
+            # Final verification attempt
+            try:
+                vpcs = ec2_client.describe_vpcs(VpcIds=[vpc_id])
+                if vpcs.get("Vpcs"):
+                    logger.error(f"  ✗ VPC {vpc_id} still exists. Remaining resources may need manual cleanup.")
+            except ClientError as final_check:
+                if final_check.response["Error"]["Code"] == "InvalidVpcID.NotFound":
+                    logger.info(f"  ✓ VPC {vpc_id} was actually deleted (final check)")
+                else:
+                    logger.error(f"  ✗ Could not verify VPC deletion status: {final_check}")
     except Exception as e:
         logger.error(f"Error deleting VPC {vpc_id}: {e}")
 
@@ -466,7 +508,44 @@ def delete_vpc_resources():
         for vpc_id in vpcs_to_delete:
             delete_single_vpc(vpc_id)
         
-        logger.info("✓ VPC resources deleted")
+        # Final verification: Check if any VPCs still exist
+        logger.info("  Verifying VPC deletion...")
+        remaining_vpcs = []
+        for vpc_id in vpcs_to_delete:
+            try:
+                vpcs = ec2_client.describe_vpcs(VpcIds=[vpc_id])
+                if vpcs.get("Vpcs"):
+                    remaining_vpcs.append(vpc_id)
+                    logger.warning(f"  ⚠ VPC {vpc_id} still exists")
+
+                    # retry VPC deletion
+                    for attempt in range(3):
+                        try:
+                            ec2_client.delete_vpc(VpcId=vpc_id)
+                            logger.info(f"  ✓ VPC deletion initiated: {vpc_id}")
+                            break
+                        except ClientError as e:
+                            if e.response["Error"]["Code"] == "DependencyViolation":
+                                if attempt < 2:
+                                    logger.info(f"    Retrying VPC deletion in 30s: {vpc_id}")
+                                    time.sleep(30)
+                                else:
+                                    logger.warning(f"    Could not delete VPC {vpc_id}: {e}")
+                                    break
+                            else:
+                                logger.warning(f"    Could not delete VPC {vpc_id}: {e}")
+                                break
+            except ClientError as e:
+                if e.response["Error"]["Code"] == "InvalidVpcID.NotFound":
+                    logger.debug(f"  ✓ VPC {vpc_id} confirmed deleted")
+                else:
+                    logger.warning(f"  Could not verify VPC {vpc_id}: {e}")
+        
+        if remaining_vpcs:
+            logger.error(f"  ✗ {len(remaining_vpcs)} VPC(s) still exist: {remaining_vpcs}")
+            logger.error("  Please check AWS console and delete manually if needed")
+        else:
+            logger.info("✓ All VPC resources deleted")
     except Exception as e:
         logger.error(f"Error deleting VPC resources: {e}")
 
