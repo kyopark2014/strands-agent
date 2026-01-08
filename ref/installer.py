@@ -18,9 +18,9 @@ import urllib.request
 import urllib.error
 
 # Configuration
-project_name = "strands" # at least 3 characters
+project_name = "mcp" # at least 3 characters
 region = "us-west-2"
-git_name = "strands-agent"
+git_name = "mcp"
 
 sts_client = boto3.client("sts", region_name=region)
 account_id = sts_client.get_caller_identity()["Account"]
@@ -2787,7 +2787,10 @@ def create_knowledge_base_with_opensearch(opensearch_info: Dict[str, str], knowl
         raise Exception("Failed to create vector index in OpenSearch collection")
     
     bedrock_agent_client = boto3.client("bedrock-agent", region_name=region)
-    parsing_model_arn = f"arn:aws:bedrock:{region}:{account_id}:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    if region == "ap-northeast-2":
+        parsing_model_arn = f"arn:aws:bedrock:{region}:{account_id}:inference-profile/apac.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    else:
+        parsing_model_arn = f"arn:aws:bedrock:{region}:{account_id}:inference-profile/us.anthropic.claude-sonnet-4-5-20250929-v1:0"    
     
     # Check if Knowledge Base already exists
     try:

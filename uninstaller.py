@@ -513,8 +513,8 @@ def delete_opensearch_collection():
         
         # Delete policies
         policies = [
-            ("network", f"network-{project_name}-{region}"),
-            ("encryption", f"encription-{project_name}-{region}")
+            ("network", f"net-{project_name}-{region}"),
+            ("encryption", f"enc-{project_name}-{region}")
         ]
         
         for policy_type, policy_name in policies:
