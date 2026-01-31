@@ -64,6 +64,7 @@ bedrock_region = config.get("region", "us-west-2")
 projectName = config.get("projectName", "mcp-rag")
 accountId = config.get("accountId", None)
 knowledge_base_id = config.get('knowledge_base_id', None)
+account_id = config.get("accountId", None)
 user_id = 'strands'
 
 if accountId is None:
@@ -702,6 +703,13 @@ def update_tool_notification(containers, tool_index, message):
     if containers is not None:
         containers['notification'][tool_index].info(message)
 
+def update_rag_result(containers, message):
+    global streaming_index
+    streaming_index = index 
+
+    if containers is not None:
+        containers['message'].markdown(message)
+
 ####################### boto3 #######################
 # General Conversation
 #########################################################
@@ -982,7 +990,7 @@ def run_rag_with_knowledge_base(query, st):
             "컨텍스트에 정보가 없으면 모른다고 답변하세요. "
             "답변은 <result> 태그 안에 작성하세요."
         )
-        user_message = f"질문: {query}\n\n컨텍스트:\n{relevant_context}"
+        user_message = f"Question: {query}\n\nContext:\n{relevant_context}"
     else:
         system_prompt = (
             "Answer the question using the following context. "
@@ -1098,8 +1106,103 @@ def run_rag_with_knowledge_base(query, st):
         logger.info(f"ref: {ref}")
         msg += ref
     
-    return msg, reference_docs
-   
+    return msg
+
+def run_rag_using_retrieve_and_generate(query, containers):
+    msg = None
+
+    global reference_docs, contentList
+    reference_docs = []
+    contentList = []
+
+    # retrieve
+    if debug_mode == "Enable":
+        add_notification(containers, f"RAG 검색을 수행합니다. 검색어: {query}")  
+
+    bedrock_agent_runtime_client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name=bedrock_region
+    )
+
+    model_arn = f"arn:aws:bedrock:{region}:{account_id}:inference-profile/us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+    
+    retrieve_response = bedrock_agent_runtime_client.retrieve_and_generate_stream(
+        input={"text": query},
+        retrieveAndGenerateConfiguration={
+            "knowledgeBaseConfiguration": {
+                "knowledgeBaseId": knowledge_base_id,
+                "modelArn": model_arn,
+                "retrievalConfiguration": {
+                    "vectorSearchConfiguration": {
+                        "numberOfResults": number_of_results
+                    }
+                }
+            },
+            "type": "KNOWLEDGE_BASE"
+        }        
+    )
+    logger.info(f"retrieve_response type: {type(retrieve_response)}")
+
+    msg = ""
+    for event in retrieve_response['stream']:
+        if "output" in event:
+            text = event['output']['text']
+            logger.info(f"text: {text}")
+            msg += text
+
+            update_rag_result(containers, msg)
+
+        if "citation" in event:
+            citation = event['citation']
+            logger.info(f"citation: {citation}")
+
+            retrieved_references = citation.get('citation', {}).get('retrievedReferences', []) or citation.get('retrievedReferences', [])
+                        
+            for ref in retrieved_references:
+                content_text = url = name = ""
+
+                if "content" in ref:
+                    content_text = ref["content"]["text"]
+
+                if "location" in ref:
+                    location = ref["location"]
+                    if "s3Location" in location:
+                        uri = location["s3Location"]["uri"] if location["s3Location"]["uri"] is not None else ""
+                        
+                        name = uri.split("/")[-1]
+                        encoded_name = parse.quote(name)                
+                        url = f"{path}/{doc_prefix}{encoded_name}"
+                    
+                    if "webLocation" in location:
+                        url = location["webLocation"]["url"] if location["webLocation"]["url"] is not None else ""
+                        name = "WEB"
+
+                reference_doc = {
+                    "contents": content_text,              
+                    "reference": {
+                        "url": url,                   
+                        "title": name,
+                        "from": "RAG"
+                    }
+                }
+                                
+                # duplicate check and add to reference_docs
+                if reference_doc not in reference_docs:
+                    reference_docs.append(reference_doc)
+                    # add_notification(containers, f"{content_text}\n\n{url}")
+
+    if reference_docs:
+        ref = "\n\n### Reference\n"
+        for i, doc in enumerate(reference_docs):
+            page_content = doc["contents"][:100].replace("\n", "")
+            ref += f"{i+1}. [{doc["reference"]['title']}]({doc["reference"]['url']}), {page_content}...\n"    
+        logger.info(f"ref: {ref}")
+        msg += ref
+
+    update_rag_result(containers, msg)
+
+    return msg
+
 tool_info_list = dict()
 tool_result_list = dict()
 tool_name_list = dict()
