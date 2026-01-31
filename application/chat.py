@@ -20,6 +20,30 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from io import BytesIO
 from langchain_core.documents import Document
+from botocore.exceptions import ClientError
+from langchain_core.messages import HumanMessage, AIMessage
+
+# Simple memory class to replace ConversationBufferWindowMemory
+class SimpleMemory:
+    def __init__(self, k=5):
+        self.k = k
+        self.chat_memory = SimpleChatMemory()
+    
+    def load_memory_variables(self, inputs):
+        return {"chat_history": self.chat_memory.messages[-self.k:] if len(self.chat_memory.messages) > self.k else self.chat_memory.messages}
+
+class SimpleChatMemory:
+    def __init__(self):
+        self.messages = []
+    
+    def add_user_message(self, message):
+        self.messages.append(HumanMessage(content=message))
+    
+    def add_ai_message(self, message):
+        self.messages.append(AIMessage(content=message))
+    
+    def clear(self):
+        self.messages = []
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
@@ -30,12 +54,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("chat")
 
+workingDir = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(workingDir, "config.json")
+
 config = utils.load_config()
 print(f"config: {config}")
 
-bedrock_region = config["region"] if "region" in config else "us-west-2"
-projectName = config["projectName"] if "projectName" in config else "mcp-rag"
-accountId = config["accountId"] if "accountId" in config else None
+bedrock_region = config.get("region", "us-west-2")
+projectName = config.get("projectName", "mcp-rag")
+accountId = config.get("accountId", None)
+knowledge_base_id = config.get('knowledge_base_id', None)
 user_id = 'strands'
 
 if accountId is None:
@@ -57,6 +85,11 @@ reasoning_mode = 'Disable'
 grading_mode = 'Disable'
 multi_region = "Disable"
 grading_mode = 'Disable'
+
+# Memory related variables
+MSG_LENGTH = 100
+map_chain = dict()
+memory_chain = None
 
 aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
 aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
@@ -214,9 +247,40 @@ def traslation(chat, text, input_language, output_language):
     return msg[msg.find('<result>')+8:len(msg)-9] # remove <result> tag
 
 def initiate():
-    global userId    
-    userId = uuid.uuid4().hex
-    logger.info(f"userId: {userId}")
+    global memory_chain, map_chain
+    
+    if user_id in map_chain:  
+        logger.info(f"memory exist. reuse it!")
+        memory_chain = map_chain[user_id]
+    else: 
+        logger.info(f"memory not exist. create new memory!")
+        memory_chain = SimpleMemory(k=5)
+        map_chain[user_id] = memory_chain
+
+def clear_chat_history():
+    global memory_chain
+    # Initialize memory_chain if it doesn't exist
+    if memory_chain is None:
+        initiate()
+    
+    if memory_chain and hasattr(memory_chain, 'chat_memory'):
+        memory_chain.chat_memory.clear()
+    else:
+        memory_chain = SimpleMemory(k=5)
+    map_chain[user_id] = memory_chain
+
+def save_chat_history(text, msg):
+    global memory_chain
+    # Initialize memory_chain if it doesn't exist
+    if memory_chain is None:
+        initiate()
+    
+    if memory_chain and hasattr(memory_chain, 'chat_memory'):
+        memory_chain.chat_memory.add_user_message(text)
+        if len(msg) > MSG_LENGTH:
+            memory_chain.chat_memory.add_ai_message(msg[:MSG_LENGTH])                          
+        else:
+            memory_chain.chat_memory.add_ai_message(msg)
 
 def isKorean(text):
     # check korean
@@ -244,7 +308,7 @@ def get_chat(extended_thinking):
     elif model_type == 'claude':
         STOP_SEQUENCE = "\n\nHuman:" 
                           
-    # AWS 자격 증명 설정
+    # Set AWS credentials
     aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
     aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
     aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
@@ -345,7 +409,7 @@ def get_summary(docs):
 
 # load documents from s3 for pdf and txt
 def load_document(file_type, s3_file_name):
-    # AWS 자격 증명 설정
+    # Set AWS credentials
     aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
     aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
     aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
@@ -443,7 +507,7 @@ def get_summary_of_uploaded_file(file_name, st):
 
 # load csv documents from s3
 def load_csv_document(s3_file_name):
-    # AWS 자격 증명 설정
+    # Set AWS credentials
     aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
     aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
     aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
@@ -515,7 +579,7 @@ def upload_to_s3(file_bytes, file_name):
     Upload a file to S3 and return the URL
     """
     try:
-        # AWS 자격 증명 설정
+        # Set AWS credentials
         aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
         aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
         aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
@@ -638,6 +702,404 @@ def update_tool_notification(containers, tool_index, message):
     if containers is not None:
         containers['notification'][tool_index].info(message)
 
+####################### boto3 #######################
+# General Conversation
+#########################################################
+def general_conversation(query):
+    global memory_chain
+    initiate()  # Initialize memory_chain
+
+    system_prompt = (
+        "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
+        "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
+        "모르는 질문을 받으면 솔직히 모른다고 말합니다."
+    )
+    
+    bedrock_client = boto3.client(
+        service_name='bedrock-runtime',
+        region_name=bedrock_region,
+        config=Config(
+            retries = {
+                'max_attempts': 30
+            }
+        )
+    )
+    
+    # Process conversation history
+    messages = []
+    if memory_chain and hasattr(memory_chain, 'load_memory_variables'):
+        history = memory_chain.load_memory_variables({})["chat_history"]
+        # Convert langchain messages to boto3 format
+        for msg in history:
+            if hasattr(msg, 'content'):
+                if msg.__class__.__name__ == 'HumanMessage':
+                    messages.append({"role": "user", "content": msg.content})
+                elif msg.__class__.__name__ == 'AIMessage':
+                    messages.append({"role": "assistant", "content": msg.content})
+        # Bedrock Converse API requirement: first message must be from user
+        if messages and messages[0]["role"] == "assistant":
+            messages = messages[1:]
+    
+    # Add current question
+    messages.append({"role": "user", "content": f"Question: {query}"})
+    
+    # Set model parameters
+    if model_type == 'claude':
+        maxOutputTokens = 4096
+        STOP_SEQUENCE = "\n\nHuman:"
+    else:
+        maxOutputTokens = 5120
+        STOP_SEQUENCE = '"\n\n<thinking>", "\n<thinking>", " <thinking>"'
+    
+    if reasoning_mode == 'Enable':
+        maxReasoningOutputTokens = 64000
+        thinking_budget = min(maxOutputTokens, maxReasoningOutputTokens-1000)
+        parameters = {
+            "max_tokens": maxReasoningOutputTokens,
+            "temperature": 1,
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": thinking_budget
+            },
+            "stop_sequences": [STOP_SEQUENCE]
+        }
+    else:
+        parameters = {
+            "max_tokens": maxOutputTokens,
+            "temperature": 0.1,
+            "top_k": 250,
+            "top_p": 0.9,
+            "stop_sequences": [STOP_SEQUENCE]
+        }
+    
+    def stream_generator():
+        try:
+            if model_type == 'claude':
+                # Claude model format
+                request_body = {
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "max_tokens": parameters["max_tokens"],
+                    "temperature": parameters.get("temperature", 0.1),
+                    "top_k": parameters.get("top_k", 250),
+                    "top_p": parameters.get("top_p", 0.9),
+                    "stop_sequences": parameters.get("stop_sequences", []),
+                    "system": system_prompt,
+                    "messages": messages
+                }
+                
+                if "thinking" in parameters:
+                    request_body["thinking"] = parameters["thinking"]
+            else:
+                # Other model format
+                request_body = {
+                    "max_tokens": parameters["max_tokens"],
+                    "temperature": parameters.get("temperature", 0.1),
+                    "system": system_prompt,
+                    "messages": messages
+                }
+            
+            # Call streaming response
+            response = bedrock_client.invoke_model_with_response_stream(
+                modelId=model_id,
+                body=json.dumps(request_body)
+            )
+            
+            full_content = ""
+            for event in response['body']:
+                chunk = json.loads(event['chunk']['bytes'].decode('utf-8'))
+                
+                if chunk.get('type') == 'content_block_delta':
+                    delta = chunk.get('delta', {})
+                    if delta.get('type') == 'text_delta':
+                        text = delta.get('text', '')
+                        full_content += text
+                        yield text
+                elif chunk.get('type') == 'message_delta':
+                    # Message complete
+                    pass
+                elif chunk.get('type') == 'message_stop':
+                    # Streaming ended
+                    pass
+            
+            # Process <reasoning> tag
+            if '<reasoning>' in full_content and '</reasoning>' in full_content:
+                reasoning_start = full_content.find('<reasoning>') + 11
+                reasoning_end = full_content.find('</reasoning>')
+                reasoning_content = full_content[reasoning_start:reasoning_end]
+                st.info(f"{reasoning_content}")
+            
+            logger.info(f"full_content: {full_content}")
+                
+        except Exception:
+            err_msg = traceback.format_exc()
+            logger.info(f"error message: {err_msg}")      
+            raise Exception ("Not able to request to LLM: "+err_msg)
+    
+    return stream_generator()
+
+number_of_results = 4
+
+def retrieve(query):
+    global knowledge_base_id
+
+    bedrock_agent_runtime_client = boto3.client(
+        "bedrock-agent-runtime",
+        region_name=bedrock_region
+    )
+    
+    try:
+        response = bedrock_agent_runtime_client.retrieve(
+            retrievalQuery={"text": query},
+            knowledgeBaseId=knowledge_base_id,
+                retrievalConfiguration={
+                    "vectorSearchConfiguration": {"numberOfResults": number_of_results},
+                },
+            )
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        
+        # Update knowledge_base_id only when ResourceNotFoundException occurs
+        if error_code == "ResourceNotFoundException":
+            logger.warning(f"ResourceNotFoundException occurred: {e}")
+            logger.info("Attempting to update knowledge_base_id...")
+            
+            bedrock_agent_client = boto3.client("bedrock-agent", region_name=bedrock_region)
+            knowledge_base_list = bedrock_agent_client.list_knowledge_bases()
+            
+            updated = False
+            for knowledge_base in knowledge_base_list.get("knowledgeBaseSummaries", []):
+                if knowledge_base["name"] == projectName:
+                    new_knowledge_base_id = knowledge_base["knowledgeBaseId"]
+                    knowledge_base_id = new_knowledge_base_id
+
+                    config['knowledge_base_id'] = new_knowledge_base_id
+                    with open(config_path, "w", encoding="utf-8") as f:
+                        json.dump(config, f, ensure_ascii=False, indent=4)
+                    
+                    logger.info(f"Updated knowledge_base_id to: {new_knowledge_base_id}")
+                    updated = True
+                    break
+            
+            if updated:
+                # Retry after updating knowledge_base_id
+                try:
+                    response = bedrock_agent_runtime_client.retrieve(
+                        retrievalQuery={"text": query},
+                        knowledgeBaseId=knowledge_base_id,
+                        retrievalConfiguration={
+                            "vectorSearchConfiguration": {"numberOfResults": number_of_results},
+                        },
+                    )
+                    logger.info("Retry successful after updating knowledge_base_id")
+                except Exception as retry_error:
+                    logger.error(f"Retry failed after updating knowledge_base_id: {retry_error}")
+                    raise
+            else:
+                logger.error(f"Could not find knowledge base with name: {projectName}")
+                raise
+        else:
+            # Re-raise other errors that are not ResourceNotFoundException
+            logger.error(f"Error retrieving: {e}")
+            raise
+    except Exception as e:
+        # Re-raise other exceptions that are not ClientError
+        logger.error(f"Unexpected error retrieving: {e}")
+        raise
+    
+    # logger.info(f"response: {response}")
+    retrieval_results = response.get("retrievalResults", [])
+    # logger.info(f"retrieval_results: {retrieval_results}")
+
+    json_docs = []
+    for result in retrieval_results:
+        text = url = name = None
+        if "content" in result:
+            content = result["content"]
+            if "text" in content:
+                text = content["text"]
+
+        if "location" in result:
+            location = result["location"]
+            if "s3Location" in location:
+                uri = location["s3Location"]["uri"] if location["s3Location"]["uri"] is not None else ""
+                
+                name = uri.split("/")[-1]
+                encoded_name = parse.quote(name)                
+                url = f"{path}/{doc_prefix}{encoded_name}"
+                
+            elif "webLocation" in location:
+                url = location["webLocation"]["url"] if location["webLocation"]["url"] is not None else ""
+                name = "WEB"
+
+        json_docs.append({
+            "contents": text,              
+            "reference": {
+                "url": url,                   
+                "title": name,
+                "from": "RAG"
+            }
+        })
+    logger.info(f"json_docs: {json_docs}")
+
+    return json.dumps(json_docs, ensure_ascii=False)
+
+def run_rag_with_knowledge_base(query, st):
+    global reference_docs, contentList
+    reference_docs = []
+    contentList = []
+
+    # retrieve
+    if debug_mode == "Enable":
+        st.info(f"RAG 검색을 수행합니다. 검색어: {query}")  
+
+    json_docs = retrieve(query)    
+    logger.info(f"json_docs: {json_docs}")
+
+    relevant_docs = json.loads(json_docs)
+
+    relevant_context = ""
+    for doc in relevant_docs:
+        relevant_context += f"{doc['contents']}\n\n"
+
+    # change format to document
+    st.info(f"{len(relevant_docs)}개의 관련된 문서를 얻었습니다.")
+
+    # Create bedrock client
+    bedrock_client = boto3.client(
+        service_name='bedrock-runtime',
+        region_name=bedrock_region,
+        config=Config(
+            retries = {
+                'max_attempts': 30
+            }
+        )
+    )
+    
+    # Configure RAG prompt
+    if isKorean(query):
+        system_prompt = (
+            "다음의 컨텍스트를 사용하여 질문에 답변하세요. "
+            "컨텍스트에 정보가 없으면 모른다고 답변하세요. "
+            "답변은 <result> 태그 안에 작성하세요."
+        )
+        user_message = f"질문: {query}\n\n컨텍스트:\n{relevant_context}"
+    else:
+        system_prompt = (
+            "Answer the question using the following context. "
+            "If you don't know the answer based on the context, say you don't know. "
+            "Put your answer in <result> tags."
+        )
+        user_message = f"Question: {query}\n\nContext:\n{relevant_context}"
+    
+    # Set model parameters
+    if model_type == 'claude':
+        maxOutputTokens = 4096
+        STOP_SEQUENCE = "\n\nHuman:"
+    else:
+        maxOutputTokens = 5120
+        STOP_SEQUENCE = '"\n\n<thinking>", "\n<thinking>", " <thinking>"'
+    
+    if reasoning_mode == 'Enable':
+        maxReasoningOutputTokens = 64000
+        thinking_budget = min(maxOutputTokens, maxReasoningOutputTokens-1000)
+        parameters = {
+            "max_tokens": maxReasoningOutputTokens,
+            "temperature": 1,
+            "thinking": {
+                "type": "enabled",
+                "budget_tokens": thinking_budget
+            },
+            "stop_sequences": [STOP_SEQUENCE]
+        }
+    else:
+        parameters = {
+            "max_tokens": maxOutputTokens,
+            "temperature": 0.1,
+            "top_k": 250,
+            "top_p": 0.9,
+            "stop_sequences": [STOP_SEQUENCE]
+        }
+    
+    # Call Bedrock API
+    msg = ""    
+    try:
+        if model_type == 'claude':
+            # Claude model format
+            request_body = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": parameters["max_tokens"],
+                "temperature": parameters.get("temperature", 0.1),
+                "top_k": parameters.get("top_k", 250),
+                "top_p": parameters.get("top_p", 0.9),
+                "stop_sequences": parameters.get("stop_sequences", []),
+                "system": system_prompt,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": user_message
+                    }
+                ]
+            }
+            
+            if "thinking" in parameters:
+                request_body["thinking"] = parameters["thinking"]
+        else:
+            # Other model format (modify if needed)
+            request_body = {
+                "max_tokens": parameters["max_tokens"],
+                "temperature": parameters.get("temperature", 0.1),
+                "system": system_prompt,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": user_message
+                    }
+                ]
+            }
+        
+        response = bedrock_client.invoke_model(
+            modelId=model_id,
+            body=json.dumps(request_body)
+        )
+        
+        response_body = json.loads(response['body'].read())
+        logger.info(f"response_body: {response_body}")
+        
+        # Extract text from response
+        if model_type == 'claude':
+            if 'content' in response_body:
+                content = response_body['content']
+                if isinstance(content, list) and len(content) > 0:
+                    msg = content[0].get('text', '')
+                else:
+                    msg = str(content)
+            else:
+                msg = str(response_body)
+        else:
+            # Handle other model formats (modify if needed)
+            msg = response_body.get('outputs', [{}])[0].get('text', '') if 'outputs' in response_body else str(response_body)
+        
+        logger.info(f"result: {msg}")
+        
+        # Extract content from <result> tag
+        if msg.find('<result>') != -1:
+            msg = msg[msg.find('<result>')+8:msg.find('</result>')]
+               
+    except Exception:
+        err_msg = traceback.format_exc()
+        logger.info(f"error message: {err_msg}")                    
+        raise Exception ("Not able to request to LLM")
+    
+    if relevant_docs:
+        ref = "\n\n### Reference\n"
+        for i, doc in enumerate(relevant_docs):
+            page_content = doc["contents"][:100].replace("\n", "")
+            ref += f"{i+1}. [{doc["reference"]['title']}]({doc["reference"]['url']}), {page_content}...\n"    
+        logger.info(f"ref: {ref}")
+        msg += ref
+    
+    return msg, reference_docs
+   
 tool_info_list = dict()
 tool_result_list = dict()
 tool_name_list = dict()
@@ -784,16 +1246,16 @@ def get_tool_info(tool_name, tool_content):
     # aws document
     elif tool_name == "search_documentation":
         try:
-            # tool_content가 리스트인 경우 처리 (예: [{'type': 'text', 'text': '...'}])
+            # Handle case where tool_content is a list (e.g., [{'type': 'text', 'text': '...'}])
             if isinstance(tool_content, list):
-                # 리스트의 첫 번째 항목에서 text 필드 추출
+                # Extract text field from the first item in the list
                 if len(tool_content) > 0 and isinstance(tool_content[0], dict) and 'text' in tool_content[0]:
                     tool_content = tool_content[0]['text']
                 else:
                     logger.info(f"Unexpected list format: {tool_content}")
                     return content, urls, tool_references
             
-            # tool_content가 문자열인 경우 JSON 파싱
+            # Parse JSON if tool_content is a string
             if isinstance(tool_content, str):
                 json_data = json.loads(tool_content)
             elif isinstance(tool_content, dict):
@@ -802,10 +1264,10 @@ def get_tool_info(tool_name, tool_content):
                 logger.info(f"Unexpected tool_content type: {type(tool_content)}")
                 return content, urls, tool_references
             
-            # search_results 배열에서 결과 추출
+            # Extract results from search_results array
             search_results = json_data.get('search_results', [])
             if not search_results:
-                # search_results가 없으면 json_data 자체가 배열일 수 있음
+                # If search_results is not found, json_data itself may be an array
                 if isinstance(json_data, list):
                     search_results = json_data
                 else:

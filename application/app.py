@@ -35,6 +35,12 @@ os.environ["DEV"] = "true"  # Skip user confirmation of get_user_input
 st.set_page_config(page_title='Strands Agent', page_icon=None, layout="centered", initial_sidebar_state="auto", menu_items=None)
 
 mode_descriptions = {
+    "일상적인 대화": [
+        "대화이력을 바탕으로 챗봇과 일상의 대화를 편안히 즐길수 있습니다."
+    ],
+    "RAG": [
+        "Bedrock Knowledge Base를 이용해 구현한 RAG로 필요한 정보를 검색합니다."
+    ],    
     "Agent": [
         "Strands Agent SDK를 활용한 Agent를 이용합니다."
     ],
@@ -82,7 +88,7 @@ with st.sidebar:
     
     # radio selection
     mode = st.radio(
-        label="원하는 대화 형태를 선택하세요. ",options=["Agent", "Agent (Chat)", "Strands Supervisor", "Strands Swarm", "Strands Swarm Tool", "Strands Code Swarm", "Strands Workflow", "Strands Graph", "Strands Graph Builder", "Strands Plan and Execute", "Strands Graph With Loop"], index=0
+        label="원하는 대화 형태를 선택하세요. ",options=["일상적인 대화", 'RAG', 'Agent', 'Agent (Chat)', 'Strands Supervisor', 'Strands Swarm', 'Strands Swarm Tool', 'Strands Code Swarm', 'Strands Workflow', 'Strands Graph', 'Strands Graph Builder', 'Strands Plan and Execute', 'Strands Graph With Loop'], index=0
     )   
     st.info(mode_descriptions[mode][0])    
     # print('mode: ', mode)
@@ -102,83 +108,84 @@ with st.sidebar:
     default_strands_tools = []
     default_mcp_selections = ["basic", "filesystem", "use_aws"]
     
-    with st.expander("MCP 옵션 선택", expanded=True):            
-        # Create two columns
-        col1, col2 = st.columns(2)
-        
-        # Split options into two groups
-        mid_point = len(mcp_tools) // 2
-        first_half = mcp_tools[:mid_point]
-        second_half = mcp_tools[mid_point:]
-        
-        # Display first group in the first column
-        with col1:
-            for option in first_half:
-                default_value = option in default_mcp_selections
-                mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
-        
-        # Display second group in the second column
-        with col2:
-            for option in second_half:
-                default_value = option in default_mcp_selections
-                mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+    if mode=="Agent" or mode=="Agent (Chat)":
+        with st.expander("MCP 옵션 선택", expanded=True):            
+            # Create two columns
+            col1, col2 = st.columns(2)
+            
+            # Split options into two groups
+            mid_point = len(mcp_tools) // 2
+            first_half = mcp_tools[:mid_point]
+            second_half = mcp_tools[mid_point:]
+            
+            # Display first group in the first column
+            with col1:
+                for option in first_half:
+                    default_value = option in default_mcp_selections
+                    mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+            
+            # Display second group in the second column
+            with col2:
+                for option in second_half:
+                    default_value = option in default_mcp_selections
+                    mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+    
+        with st.expander("Strands Tools 옵션 선택", expanded=True):            
+            # Create two columns
+            col1, col2 = st.columns(2)
+            
+            # Split options into two groups
+            mid_point = len(strands_tools) // 2
+            first_half = strands_tools[:mid_point]
+            second_half = strands_tools[mid_point:]
+            
+            # Display first group in the first column
+            with col1:
+                for option in first_half:
+                    default_value = option in default_strands_tools
+                    strands_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+            
+            # Display second group in the second column
+            with col2:
+                for option in second_half:
+                    default_value = option in default_strands_tools
+                    strands_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
 
-    with st.expander("Strands Tools 옵션 선택", expanded=True):            
-        # Create two columns
-        col1, col2 = st.columns(2)
-        
-        # Split options into two groups
-        mid_point = len(strands_tools) // 2
-        first_half = strands_tools[:mid_point]
-        second_half = strands_tools[mid_point:]
-        
-        # Display first group in the first column
-        with col1:
-            for option in first_half:
-                default_value = option in default_strands_tools
-                strands_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
-        
-        # Display second group in the second column
-        with col2:
-            for option in second_half:
-                default_value = option in default_strands_tools
-                strands_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
-
-    if mcp_selections["사용자 설정"]:
-        mcp = {}
-        try:
-            with open("user_defined_mcp.json", "r", encoding="utf-8") as f:
-                mcp = json.load(f)
-                logger.info(f"loaded user defined mcp: {mcp}")
-        except FileNotFoundError:
-            logger.info("user_defined_mcp.json not found")
-            pass
-        
-        mcp_json_str = json.dumps(mcp, ensure_ascii=False, indent=2) if mcp else ""
-        
-        mcp_info = st.text_area(
-            "MCP 설정을 JSON 형식으로 입력하세요",
-            value=mcp_json_str,
-            height=150
-        )
-        logger.info(f"mcp_info: {mcp_info}")
-
-        if mcp_info:
+        if mcp_selections["사용자 설정"]:
+            mcp = {}
             try:
-                mcp_config.mcp_user_config = json.loads(mcp_info)
-                logger.info(f"mcp_user_config: {mcp_config.mcp_user_config}")                    
-                st.success("JSON 설정이 성공적으로 로드되었습니다.")                    
-            except json.JSONDecodeError as e:
-                st.error(f"JSON 파싱 오류: {str(e)}")
-                st.error("올바른 JSON 형식으로 입력해주세요.")
-                logger.error(f"JSON 파싱 오류: {str(e)}")
+                with open("user_defined_mcp.json", "r", encoding="utf-8") as f:
+                    mcp = json.load(f)
+                    logger.info(f"loaded user defined mcp: {mcp}")
+            except FileNotFoundError:
+                logger.info("user_defined_mcp.json not found")
+                pass
+            
+            mcp_json_str = json.dumps(mcp, ensure_ascii=False, indent=2) if mcp else ""
+            
+            mcp_info = st.text_area(
+                "MCP 설정을 JSON 형식으로 입력하세요",
+                value=mcp_json_str,
+                height=150
+            )
+            logger.info(f"mcp_info: {mcp_info}")
+
+            if mcp_info:
+                try:
+                    mcp_config.mcp_user_config = json.loads(mcp_info)
+                    logger.info(f"mcp_user_config: {mcp_config.mcp_user_config}")                    
+                    st.success("JSON 설정이 성공적으로 로드되었습니다.")                    
+                except json.JSONDecodeError as e:
+                    st.error(f"JSON 파싱 오류: {str(e)}")
+                    st.error("올바른 JSON 형식으로 입력해주세요.")
+                    logger.error(f"JSON 파싱 오류: {str(e)}")
+                    mcp_config.mcp_user_config = {}
+            else:
                 mcp_config.mcp_user_config = {}
-        else:
-            mcp_config.mcp_user_config = {}
-                
-        with open("user_defined_mcp.json", "w", encoding="utf-8") as f:
-            json.dump(mcp_config.mcp_user_config, f, ensure_ascii=False, indent=4)
-        logger.info("save to user_defined_mcp.json")
+                    
+            with open("user_defined_mcp.json", "w", encoding="utf-8") as f:
+                json.dump(mcp_config.mcp_user_config, f, ensure_ascii=False, indent=4)
+            logger.info("save to user_defined_mcp.json")
 
     # model selection box
     modelName = st.selectbox(
@@ -225,7 +232,7 @@ with st.sidebar:
     # logger.info(f"gradingMode: {gradingMode}")
 
     uploaded_file = None
-    if mode=="Agent" or mode=="Agent (Chat)":
+    if mode=="RAG" or mode=="Agent" or mode=="Agent (Chat)":
         st.subheader("📋 문서 업로드")
         # print('fileId: ', chat.fileId)
         uploaded_file = st.file_uploader("RAG를 위한 파일을 선택합니다.", type=["pdf", "txt", "py", "md", "csv", "json"], key=chat.fileId)
@@ -316,6 +323,13 @@ if uploaded_file is not None and clear_button==False:
 
         st.write(msg)
 
+def show_references(reference_docs):
+    if debugMode == "Enable" and reference_docs:
+        with st.expander(f"답변에서 참조한 {len(reference_docs)}개의 문서입니다."):
+            for i, doc in enumerate(reference_docs):
+                st.markdown(f"**{doc.metadata['name']}**: {doc.page_content}")
+                st.markdown("---")
+
 # Always show the chat input
 if prompt := st.chat_input("메시지를 입력하세요."):
     with st.chat_message("user"):  # display user message in chat message container
@@ -335,7 +349,25 @@ if prompt := st.chat_input("메시지를 입력하세요."):
         }
 
         image_urls = []
-        if mode == 'Agent':
+
+        if mode == '일상적인 대화':
+            stream = chat.general_conversation(prompt)            
+            response = st.write_stream(stream)
+            logger.info(f"response: {response}")
+
+            chat.save_chat_history(prompt, response)
+
+        elif mode == 'RAG':
+            with st.status("running...", expanded=True, state="running") as status:
+                response, reference_docs = chat.run_rag_with_knowledge_base(prompt, st)                           
+                st.write(response)
+                logger.info(f"response: {response}")
+
+                chat.save_chat_history(prompt, response)
+            
+            show_references(reference_docs) 
+
+        elif mode == 'Agent':
             history_mode = "Disable"
             response, image_urls = asyncio.run(chat.run_strands_agent(
                 query=prompt, 
@@ -403,3 +435,5 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             "images": image_urls if image_urls else []
         })
     
+    
+
