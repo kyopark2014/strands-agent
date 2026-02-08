@@ -17,7 +17,6 @@ from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
 from mcp.client.streamable_http import streamablehttp_client
 from botocore.config import Config
-from speak import speak
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
@@ -42,9 +41,7 @@ capture_prefix = "captures"
 selected_strands_tools = []
 selected_mcp_servers = []
 
-history_mode = "Disable"
 aws_region = utils.bedrock_region
-
 
 #########################################################
 # Strands Agent 
@@ -78,24 +75,19 @@ def get_model():
     )
 
     if aws_access_key and aws_secret_key:
-        bedrock_client = boto3.client(
-            'bedrock-runtime',
+        boto_session = boto3.Session(
             region_name=aws_region,
             aws_access_key_id=aws_access_key,
             aws_secret_access_key=aws_secret_key,
             aws_session_token=aws_session_token,
-            config=bedrock_config
         )
     else:
-        bedrock_client = boto3.client(
-            'bedrock-runtime',
-            region_name=aws_region,
-            config=bedrock_config
-        )
+        boto_session = boto3.Session(region_name=aws_region)
 
     if chat.reasoning_mode=='Enable' and chat.model_type != 'openai':
         model = BedrockModel(
-            client=bedrock_client,
+            boto_session=boto_session,
+            boto_client_config=bedrock_config,
             model_id=chat.model_id,
             max_tokens=64000,
             stop_sequences = [STOP_SEQUENCE],
@@ -109,12 +101,12 @@ def get_model():
         )
     elif chat.reasoning_mode=='Disable' and chat.model_type != 'openai':
         model = BedrockModel(
-            client=bedrock_client,
+            boto_session=boto_session,
+            boto_client_config=bedrock_config,
             model_id=chat.model_id,
             max_tokens=maxOutputTokens,
             stop_sequences = [STOP_SEQUENCE],
             temperature = 0.1,
-            top_p = 0.9,
             additional_request_fields={
                 "thinking": {
                     "type": "disabled"
@@ -137,6 +129,8 @@ class MCPClientManager:
     def __init__(self):
         self.clients: Dict[str, MCPClient] = {}
         self.client_configs: Dict[str, dict] = {}  # Store client configurations
+        self._persistent_stack: Optional[contextlib.ExitStack] = None
+        self._persistent_client_names: List[str] = []
     
     def _refresh_bearer_token_and_update_client(self, client_name: str) -> bool:
         """Refresh bearer token and update client configuration"""
@@ -192,7 +186,6 @@ class MCPClientManager:
             "args": args,
             "env": env
         }
-        logger.info(f"Stored configuration for MCP client: {name}")
     
     def add_streamable_client(self, name: str, url: str, headers: dict[str, str] = {}) -> None:
         """Add a new MCP client configuration (lazy initialization)"""
@@ -201,7 +194,6 @@ class MCPClientManager:
             "url": url,
             "headers": headers
         }
-        logger.info(f"Stored configuration for MCP client: {name}")
     
     def get_client(self, name: str) -> Optional[MCPClient]:
         """Get or create MCP client (lazy initialization)"""
@@ -212,7 +204,7 @@ class MCPClientManager:
         if name not in self.clients:
             # Create client on first use
             config = self.client_configs[name]
-            logger.info(f"Creating MCP client for {name} with config: {config}")
+            logger.info(f"Creating {name} MCP client with config: {config}")
             try:
                 if "transport" in config and config["transport"] == "streamable_http":
                     try:
@@ -281,10 +273,55 @@ class MCPClientManager:
         if name in self.client_configs:
             del self.client_configs[name]
     
+    def start_agent_clients(self, client_names: List[str]) -> bool:
+        """Start MCP clients persistently. Only restarts if client list changed."""
+        if self._persistent_stack and set(self._persistent_client_names) == set(client_names):
+            logger.info(f"Persistent MCP clients already running: {client_names}")
+            return False
+        
+        self.stop_agent_clients()
+        
+        logger.info(f"Starting persistent MCP clients: {client_names}")
+        self._persistent_stack = contextlib.ExitStack()
+        
+        for name in client_names:
+            client = self.get_client(name)
+            if client:
+                try:
+                    if hasattr(client, '_session') and client._session is not None:
+                        try:
+                            client.stop()
+                        except Exception:
+                            pass
+                    self._persistent_stack.enter_context(client)
+                    logger.info(f"client started: {name}")
+                except Exception as e:
+                    logger.error(f"Error starting client {name}: {e}")
+        
+        self._persistent_client_names = list(client_names)
+        return True
+    
+    def stop_agent_clients(self):
+        """Stop all persistent MCP clients."""
+        if self._persistent_stack:
+            logger.info(f"Stopping persistent MCP clients: {self._persistent_client_names}")
+            try:
+                self._persistent_stack.close()
+            except Exception as e:
+                logger.warning(f"Error stopping persistent clients: {e}")
+            self._persistent_stack = None
+            self._persistent_client_names = []
+    
     @contextmanager
     def get_active_clients(self, active_clients: List[str]):
         """Manage active clients context"""
-        logger.info(f"active_clients: {active_clients}")
+        
+        # Reuse persistent clients if the same set is already running
+        if self._persistent_stack and set(self._persistent_client_names) == set(active_clients):
+            logger.info(f"Reusing MCP clients")
+            yield
+            return
+        
         active_contexts = []
         try:
             for client_name in active_clients:
@@ -370,8 +407,6 @@ mcp_manager = MCPClientManager()
 
 # Set up MCP clients
 def init_mcp_clients(mcp_servers: list):
-    logger.info(f"mcp_servers: {mcp_servers}")
-    
     for tool in mcp_servers:
         logger.info(f"Initializing MCP client for tool: {tool}")
         config = mcp_config.load_config(tool)
@@ -415,11 +450,11 @@ def init_mcp_clients(mcp_servers: list):
             command = server_config["command"]
             args = server_config["args"]
             env = server_config.get("env", {})  # Use empty dict if env is not present            
-            logger.info(f"Adding MCP client - name: {name}, command: {command}, args: {args}, env: {env}")        
+            logger.info(f"name: {name}, command: {command}, args: {args}, env: {env}")        
 
             try:
                 mcp_manager.add_stdio_client(name, command, args, env)
-                logger.info(f"Successfully added MCP client for {name}")
+                logger.info(f"Successfully added {name} MCP client")
             except Exception as e:
                 logger.error(f"Failed to add stdio MCP client for {name}: {e}")
                 continue
@@ -428,10 +463,7 @@ def update_tools(strands_tools: list, mcp_servers: list):
     tools = []
     tool_map = {
         "calculator": calculator,
-        "current_time": current_time,
-        "use_aws": use_aws,
-        "speak": speak
-        # "python_repl": python_repl  # Temporarily disabled
+        "current_time": current_time
     }
 
     for tool_item in strands_tools:
@@ -451,11 +483,11 @@ def update_tools(strands_tools: list, mcp_servers: list):
                     logger.info(f"Got client for {mcp_tool}, attempting to list tools...")
                     try:
                         mcp_servers_list = client.list_tools_sync()
-                        logger.info(f"{mcp_tool}_tools: {mcp_servers_list}")
+                        # logger.info(f"{mcp_tool}_tools: {mcp_servers_list}")
                         if mcp_servers_list:
                             tools.extend(mcp_servers_list)
                             mcp_servers_loaded += 1
-                            logger.info(f"Successfully added {len(mcp_servers_list)} tools from {mcp_tool}")
+                            logger.info(f"Successfully added {len(mcp_servers_list)} tools from {mcp_tool} server")
                         else:
                             logger.warning(f"No tools returned from {mcp_tool}")
                     except Exception as tool_error:
@@ -490,12 +522,9 @@ def update_tools(strands_tools: list, mcp_servers: list):
             
             continue
 
-    logger.info(f"Successfully loaded {mcp_servers_loaded} out of {len(mcp_servers)} MCP tools")
-    logger.info(f"tools: {tools}")
-
     return tools
 
-def create_agent(system_prompt, tools, history_mode):
+def create_agent(system_prompt, tools):
     if system_prompt==None:
         system_prompt = (
             "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
@@ -507,22 +536,15 @@ def create_agent(system_prompt, tools, history_mode):
         system_prompt = "You are a helpful AI assistant."
 
     model = get_model()
-    if history_mode == "Enable":
-        logger.info("history_mode: Enable")
-        agent = Agent(
-            model=model,
-            system_prompt=system_prompt,
-            tools=tools,
-            conversation_manager=conversation_manager
-        )
-    else:
-        logger.info("history_mode: Disable")
-        agent = Agent(
-            model=model,
-            system_prompt=system_prompt,
-            tools=tools
-            #max_parallel_tools=2
-        )
+    
+    agent = Agent(
+        model=model,
+        system_prompt=system_prompt,
+        tools=tools,
+        conversation_manager=conversation_manager,
+        #max_parallel_tools=2
+    )
+
     return agent
 
 def get_tool_list(tools):
@@ -536,37 +558,29 @@ def get_tool_list(tools):
             tool_list.append(module_name)
     return tool_list
 
-async def initiate_agent(system_prompt, strands_tools, mcp_servers, historyMode):
+async def initiate_agent(system_prompt, strands_tools, mcp_servers):
     global agent, initiated
-    global selected_strands_tools, selected_mcp_servers, history_mode, tool_list
+    global selected_strands_tools, selected_mcp_servers, tool_list
 
     update_required = False
     if selected_strands_tools != strands_tools:
-        logger.info("strands_tools update!")
         selected_strands_tools = strands_tools
         update_required = True
         logger.info(f"strands_tools: {strands_tools}")
 
     if selected_mcp_servers != mcp_servers:
-        logger.info("mcp_servers update!")
         selected_mcp_servers = mcp_servers
         update_required = True
         logger.info(f"mcp_servers: {mcp_servers}")
 
-    if history_mode != historyMode:
-        logger.info("history_mode update!")
-        history_mode = historyMode
-        update_required = True
-        logger.info(f"history_mode: {history_mode}")
-
-    logger.info(f"initiated: {initiated}, update_required: {update_required}")
-
-    if not initiated or update_required:        
+    if not initiated or update_required:
+        mcp_manager.stop_agent_clients()
+        
         init_mcp_clients(mcp_servers)
         tools = update_tools(strands_tools, mcp_servers)
-        logger.info(f"tools: {tools}")
+        # logger.info(f"tools: {tools}")
 
-        agent = create_agent(system_prompt, tools, history_mode)
+        agent = create_agent(system_prompt, tools)
         tool_list = get_tool_list(tools)
 
         if not initiated:
@@ -575,4 +589,7 @@ async def initiate_agent(system_prompt, strands_tools, mcp_servers, historyMode)
         else:
             logger.info("update agent!")
             update_required = False
+    
+    # Start or reuse persistent MCP clients
+    mcp_manager.start_agent_clients(mcp_servers)
 
