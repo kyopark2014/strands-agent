@@ -64,22 +64,6 @@ def get_weather_info(city: str) -> str:
     
     return mcp_basic.get_weather_info(city)
 
-######################################
-# Stock
-######################################
-@mcp.tool()
-def stock_data_lookup(ticker, country, period="1mo"):
-    """
-    Retrieve accurate stock data for a given ticker.
-    country: the english country name of the stock
-    ticker: the ticker to retrieve price history for. In South Korea, a ticker is a 6-digit number.
-    period: the period to retrieve price history for. for example, "1mo", "1y", "5y", "max"
-    return: the information of ticker
-    """ 
-    logger.info(f"stock_data_lookup --> ticker: {ticker}, country: {country}, period: {period}")
-
-    return mcp_basic.stock_data_lookup(ticker, country, period)
-
 if __name__ =="__main__":
     mcp.run(transport="stdio")
 

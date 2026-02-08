@@ -293,18 +293,33 @@ def load_config(mcp_type):
         }
     
     elif mcp_type == "filesystem":
+        parent_dir = os.path.dirname(workingDir)
+        contents_dir = os.path.join(parent_dir, "contents")
         return {
             "mcpServers": {
                 "filesystem": {
-                    "command": "npx",
+                    "command": "mcp-server-filesystem",
                     "args": [
-                        "@modelcontextprotocol/server-filesystem",
-                        f"{workingDir}"
+                        f"{parent_dir}",
+                        f"{workingDir}",
+                        f"{contents_dir}"
                     ]
                 }
             }
-        }
+        }    
     
+    elif mcp_type == "trade_info":
+        return {
+            "mcpServers": {
+                "trade_info": {
+                    "command": "python",
+                    "args": [
+                        f"{workingDir}/mcp_server_trade_info.py"
+                    ]
+                }
+            }
+        }    
+        
     elif mcp_type == "puppeteer":
         return {
             "mcpServers": {

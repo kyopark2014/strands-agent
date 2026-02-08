@@ -93,7 +93,7 @@ with st.sidebar:
     mcp_tools = [
         "basic", "short-term memory", "long-term memory", "tavily-search", "aws-api", "aws-knowledge", "aws document", "aws cost", "aws cli", 
         "use_aws", "aws cloudwatch", "aws storage", "image generation", "aws diagram",
-        "code interpreter", "knowledge base", "perplexity", "ArXiv", "wikipedia", 
+        "code interpreter", "knowledge base", "perplexity", "ArXiv", "wikipedia", "trade_info",
         "filesystem", "terminal", "text editor", "context7", "puppeteer", 
         "agentcore-browser", "playwright", "firecrawl", "obsidian", "airbnb", 
         "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "사용자 설정"

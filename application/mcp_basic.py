@@ -2,7 +2,6 @@ import logging
 import sys
 import datetime
 import requests
-import yfinance as yf
 import traceback
 import json
 import re
@@ -71,23 +70,19 @@ def isKorean(text):
     # check korean
     pattern_hangul = re.compile('[\u3131-\u3163\uac00-\ud7a3]+')
     word_kor = pattern_hangul.search(str(text))
-    # print('word_kor: ', word_kor)
 
     if word_kor and word_kor != 'None':
-        # logger.info(f"Korean: {word_kor}")
         return True
     else:
-        # logger.info(f"Not Korean:: {word_kor}")
         return False
 
 def get_chat(extended_thinking):
-    model_name = "Claude 3.5 Sonnet"
+    model_name = "Claude 4 Sonnet"
     model_type = "claude"
     models = info.get_model_info(model_name)
     model_id = models[0]["model_id"]
         
     profile = models[0]
-    # print('profile: ', profile)
         
     bedrock_region =  profile['bedrock_region']
     modelId = profile['model_id']
@@ -168,7 +163,6 @@ def traslation(chat, text, input_language, output_language):
     human = "<article>{text}</article>"
     
     prompt = ChatPromptTemplate.from_messages([("system", system), ("human", human)])
-    # print('prompt: ', prompt)
     
     chain = prompt | chat    
     try: 
@@ -178,10 +172,8 @@ def traslation(chat, text, input_language, output_language):
                 "output_language": output_language,
                 "text": text,
             }
-        )
-        
+        )        
         msg = result.content
-        # print('translated text: ', msg)
     except Exception:
         err_msg = traceback.format_exc()
         logger.info(f"error message: {err_msg}")     
@@ -219,7 +211,6 @@ def get_weather_info(city: str) -> str:
         lang = 'en' 
         units = 'metric' 
         api = f"https://api.openweathermap.org/data/2.5/weather?q={place}&APPID={apiKey}&lang={lang}&units={units}"
-        # print('api: ', api)
                 
         try:
             result = requests.get(api)
@@ -246,42 +237,3 @@ def get_weather_info(city: str) -> str:
     logger.info(f"weather_str: {weather_str}")                        
     return weather_str
 
-def stock_data_lookup(ticker, country, period="1mo"):
-    """
-    Retrieve accurate stock data for a given ticker.
-    country: the english country name of the stock
-    ticker: the ticker to retrieve stock price history for. In South Korea, a ticker is a 6-digit number.
-    period: the period to retrieve stock price history for. for example, "1mo", "1y", "5y", "max"
-    return: the information of ticker
-    """ 
-    com = re.compile('[a-zA-Z]') 
-    alphabet = com.findall(ticker)
-    logger.info(f"alphabet: {alphabet}")
-
-    logger.info(f"country: {country}")
-
-    if len(alphabet)==0:
-        if country == "South Korea":
-            ticker += ".KS"
-        elif country == "Japan":
-            ticker += ".T"
-    logger.info(f"ticker: {ticker}")
-    
-    stock = yf.Ticker(ticker)
-    
-    # get the price history for past 1 month
-    history = stock.history(period=period)
-    logger.info(f"history: {history}")
-    
-    result = f"## Trading History\n{history}"
-    #history.reset_index().to_json(orient="split", index=False, date_format="iso")    
-    
-    result += f"\n\n## Financials\n{stock.financials}"    
-    logger.info(f"financials: {stock.financials}")
-
-    result += f"\n\n## Major Holders\n{stock.major_holders}"
-    logger.info(f"major_holders: {stock.major_holders}")
-
-    logger.info(f"result: {result}")
-
-    return result
