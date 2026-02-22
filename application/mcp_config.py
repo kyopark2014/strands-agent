@@ -528,7 +528,7 @@ def load_config(mcp_type):
                     "args": [f"{workingDir}/mcp_server_long_term_memory.py"]
                 }
             }
-        }
+        } 
     
     elif mcp_type == "short-term memory":
         return {
@@ -539,6 +539,20 @@ def load_config(mcp_type):
                 }
             }
         }
+
+    elif mcp_type == "notion":
+        token = utils.get_notion_key()
+        return {
+            "mcpServers": {
+                "notionApi": {
+                    "command": "npx",
+                    "args": ["-y", "@notionhq/notion-mcp-server"],
+                    "env": {
+                        "NOTION_TOKEN": token
+                    }
+                }
+            }
+        }   
     
     elif mcp_type == "사용자 설정":
         return mcp_user_config

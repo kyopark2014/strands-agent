@@ -171,6 +171,32 @@ except Exception as e:
     logger.info(f"perplexity credential is required: {e}")
     raise e
 
+
+# api key to use notion
+notion_key = ""
+def get_notion_key():
+    global notion_key
+
+    if not notion_key:
+        try:
+            get_notion_api_secret = secretsmanager.get_secret_value(
+                SecretId=f"notionapikey-{projectName}"
+            )
+            #logger.info('get_perplexity_api_secret: ', get_perplexity_api_secret)
+            secret = json.loads(get_notion_api_secret['SecretString'])
+            #logger.info('secret: ', secret)
+
+            if "notion_api_key" in secret:
+                notion_key = secret['notion_api_key']
+                # logger.info('updated notion_key: ', notion_key)
+
+        except Exception as e: 
+            logger.info(f"nova act credential is required: {e}")
+            # raise e
+            pass
+    return notion_key
+
+
 async def generate_pdf_report(report_content: str, filename: str) -> str:
     """
     Generates a PDF report from the research findings.
