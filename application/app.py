@@ -96,7 +96,7 @@ with st.sidebar:
         "code interpreter", "knowledge base", "perplexity", "ArXiv", "wikipedia", "trade_info",
         "filesystem", "terminal", "text editor", "context7", "puppeteer", 
         "agentcore-browser", "playwright", "firecrawl", "obsidian", "airbnb", 
-        "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "사용자 설정"
+        "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "notion", "사용자 설정"
     ]
 
     mcp_selections = {}
