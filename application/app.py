@@ -85,7 +85,7 @@ with st.sidebar:
     
     # radio selection
     mode = st.radio(
-        label="원하는 대화 형태를 선택하세요. ",options=["일상적인 대화", 'RAG', 'Agent', 'Strands Supervisor', 'Strands Swarm', 'Strands Swarm Tool', 'Strands Code Swarm', 'Strands Workflow', 'Strands Graph', 'Strands Graph Builder', 'Strands Plan and Execute', 'Strands Graph With Loop'], index=0
+        label="원하는 대화 형태를 선택하세요. ",options=["일상적인 대화", 'RAG', 'Agent', 'Strands Supervisor', 'Strands Swarm', 'Strands Swarm Tool', 'Strands Code Swarm', 'Strands Workflow', 'Strands Graph', 'Strands Graph Builder', 'Strands Plan and Execute', 'Strands Graph With Loop'], index=2
     )   
     st.info(mode_descriptions[mode][0])    
 
