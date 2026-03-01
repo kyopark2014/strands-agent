@@ -206,6 +206,10 @@ with st.sidebar:
         ), index=0
     )
 
+    # skill checkbox
+    select_skillMode = st.checkbox('Skill Mode', value=True)
+    skillMode = 'Enable' if select_skillMode else 'Disable'    
+
     # debug checkbox
     select_debugMode = st.checkbox('Debug Mode', value=True)
     debugMode = 'Enable' if select_debugMode else 'Disable'
@@ -234,7 +238,7 @@ with st.sidebar:
     selected_strands_tools = [tool for tool, is_selected in strands_selections.items() if is_selected]
     selected_mcp_servers = [server for server, is_selected in mcp_selections.items() if is_selected]
     
-    chat.update(modelName, reasoningMode, debugMode, multiRegion, gradingMode)
+    chat.update(modelName, reasoningMode, debugMode, multiRegion, gradingMode, skillMode)
 
     st.success(f"Connected to {modelName}", icon="💚")
     clear_button = st.button("대화 초기화", key="clear")

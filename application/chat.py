@@ -85,6 +85,7 @@ reasoning_mode = 'Disable'
 grading_mode = 'Disable'
 multi_region = "Disable"
 grading_mode = 'Disable'
+skill_mode = 'Disable'
 
 # Memory related variables
 MSG_LENGTH = 100
@@ -96,8 +97,8 @@ aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
 aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
 aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
 
-def update(modelName, reasoningMode, debugMode, multiRegion, gradingMode):    
-    global model_name, model_id, model_type, reasoning_mode, debug_mode, multi_region, grading_mode
+def update(modelName, reasoningMode, debugMode, multiRegion, gradingMode, skillMode):    
+    global model_name, model_id, model_type, reasoning_mode, debug_mode, multi_region, grading_mode, skill_mode
 
     # load mcp.env    
     mcp_env = utils.load_mcp_env()
@@ -126,6 +127,11 @@ def update(modelName, reasoningMode, debugMode, multiRegion, gradingMode):
         grading_mode = gradingMode
         logger.info(f"grading_mode: {grading_mode}")
         mcp_env['grading_mode'] = grading_mode
+
+    if skillMode != skill_mode:
+        skill_mode = skillMode
+        logger.info(f"skill_mode: {skill_mode}")
+        mcp_env['skill_mode'] = skill_mode
 
     # update mcp.env    
     mcp_env['user_id'] = user_id

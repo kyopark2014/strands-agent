@@ -110,6 +110,8 @@ try:
     secret = json.loads(get_weather_api_secret['SecretString'])
     #print('secret: ', secret)
     weather_api_key = secret['weather_api_key']
+    if weather_api_key:
+        os.environ["OPENWEATHERMAP_API_KEY"] = weather_api_key
 
 except Exception as e:
     raise e
@@ -130,7 +132,7 @@ try:
 
         if tavily_key:
             tavily_api_wrapper = TavilySearchAPIWrapper(tavily_api_key=tavily_key)
-            #     os.environ["TAVILY_API_KEY"] = tavily_key
+            os.environ["TAVILY_API_KEY"] = tavily_key
 
         else:
             logger.info(f"tavily_key is required.")

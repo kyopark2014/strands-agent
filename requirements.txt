@@ -26,3 +26,4 @@ diagrams
 reportlab
 strands-agents 
 strands-agents-tools
+pyyaml
