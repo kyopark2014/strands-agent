@@ -1,146 +1,74 @@
 ---
 name: tavily-search
-description: Web search using Tavily AI-powered search API. Returns AI-synthesized answers with citations and structured search results. Use when the user explicitly requests Tavily search, or when high-quality AI-synthesized answers with citations are needed for research, fact-checking, or comprehensive information gathering. Requires TAVILY_API_KEY.
+description: Perform internet searches using the Tavily Search API. Use this skill when the user needs up-to-date information, facts, news, or data that might not be in the model's knowledge. This skill is ideal for answering questions about current events, verifying facts, researching topics, or finding specific information on the web.
 ---
 
-# Tavily Search
+# Tavily Search Skill
 
-AI-powered web search that returns synthesized answers with citations and structured results.
-
-## When to Use
-
-- User explicitly requests "use Tavily" or "search with Tavily"
-- Research tasks requiring comprehensive, cited answers
-- Fact-checking with source verification
-- Alternative to Brave/Perplexity when specifically requested
-
-## Requirements
-
-- Python 3.6+
-- `tavily-python` package: `pip install tavily-python`
-- `TAVILY_API_KEY` environment variable
-
-Get your API key at: https://tavily.com
-
-## Script Location
-
-The search script is located at `skills/tavily-search/scripts/search.py` relative to the application working directory.
-**IMPORTANT**: Always use the FULL path `skills/tavily-search/scripts/search.py` — do NOT shorten to `scripts/search.py`.
-
-## Quick Start
-
-### Basic search
-
-```bash
-python skills/tavily-search/scripts/search.py "latest AI developments"
-```
-
-### Advanced search with more results
-
-```bash
-python skills/tavily-search/scripts/search.py "quantum computing breakthroughs" --max-results 10 --depth advanced
-```
-
-### Text format output
-
-```bash
-python skills/tavily-search/scripts/search.py "climate change news" --format text
-```
+This skill enables internet search capabilities using the Tavily Search API, allowing you to retrieve up-to-date information from the web.
 
 ## Usage
 
-### Command-line options
-
-- `query` (required): Search query
-- `--max-results N`: Maximum results (1-10, default: 5)
-- `--depth [basic|advanced]`: Search depth (default: basic)
-  - `basic`: Fast, general search
-  - `advanced`: Deep, comprehensive search (slower, costs more)
-- `--no-answer`: Exclude AI-generated answer
-- `--raw-content`: Include full page content
-- `--format [json|text]`: Output format (default: json)
-
-### Response format
-
-Tavily returns:
-
-- `answer`: AI-synthesized answer to the query
-- `results`: Array of search results with:
-  - `title`: Page title
-  - `url`: Source URL
-  - `content`: Relevant excerpt
-  - `score`: Relevance score
-- `query`: Original query
-- `response_time`: API response time
-
-## Examples
-
-### Research query
-
-```bash
-python skills/tavily-search/scripts/search.py "What are the latest developments in quantum computing?" --depth advanced
-```
-
-Returns comprehensive answer with 5-10 cited sources.
-
-### Quick fact check
-
-```bash
-python skills/tavily-search/scripts/search.py "When was the Eiffel Tower built?" --max-results 3
-```
-
-Fast answer with minimal sources.
-
-### News search
-
-```bash
-python skills/tavily-search/scripts/search.py "breaking news today" --format text
-```
-
-Human-readable format with headlines and summaries.
-
-## Integration in OpenClaw
-
-When called by the agent, run the script and parse the JSON output.
-**IMPORTANT**: The script path MUST be `skills/tavily-search/scripts/search.py` (full path from the application working directory).
+Use the search script to perform web searches:
 
 ```python
-import subprocess
-import json
+from scripts.search import tavily_search
 
-SEARCH_SCRIPT = "skills/tavily-search/scripts/search.py"
+# Basic search
+results = tavily_search(query="your search query")
+print(results)
 
-result = subprocess.run(
-    ["python", SEARCH_SCRIPT, query, "--max-results", "5"],
-    capture_output=True,
-    text=True
+# Advanced search with parameters
+results = tavily_search(
+    query="your search query",
+    search_depth="advanced",  # "basic" (default) or "advanced"
+    include_images=False,     # True or False (default)
+    include_answer=True,      # True (default) or False
+    include_raw_content=False,# True or False (default)
+    max_results=5             # Number of results (default: 5)
 )
-response = json.loads(result.stdout)
+print(results)
 ```
 
-## Notes
+## Parameters
 
-- **API key**: Set `TAVILY_API_KEY` in environment or `~/.openclaw/.env`
-- **Rate limits**: Check Tavily pricing page for your plan's limits
-- **Search depth**: Use `basic` for most queries; `advanced` for research
-- **Cost**: Advanced search costs more credits per query
+- `query` (required): The search query string
+- `search_depth`: "basic" (faster, less comprehensive) or "advanced" (slower, more comprehensive)
+- `include_images`: Whether to include image URLs in results
+- `include_answer`: Whether to include an AI-generated answer
+- `include_raw_content`: Whether to include raw content from search results
+- `max_results`: Maximum number of results to return (default: 5)
 
-## Troubleshooting
+## Response Format
 
-### Module not found
+The search function returns a dictionary with the following structure:
 
-```bash
-pip install tavily-python
+```python
+{
+    "results": [
+        {
+            "url": "https://example.com/page1",
+            "content": "Content snippet from the page...",
+            "title": "Page Title"
+        },
+        # More results...
+    ],
+    "answer": "AI-generated answer based on search results (if include_answer=True)",
+    "images": [
+        {"url": "https://example.com/image1.jpg"},
+        # More images (if include_images=True)...
+    ]
+}
 ```
 
-### Missing API key
+## Best Practices
 
-```bash
-export TAVILY_API_KEY="tvly-xxx"
-```
+1. **Be specific**: Use precise search queries for better results
+2. **Use advanced search** for complex topics that need deeper research
+3. **Include answer** when you need a summarized response
+4. **Limit results** to improve processing speed when fewer results are needed
+5. **Exclude images** when only text information is needed
 
-### Permission denied
+## Error Handling
 
-```bash
-chmod +x skills/tavily-search/scripts/search.py
-```
+The search function will handle API errors gracefully and return an error message in the results if something goes wrong.
