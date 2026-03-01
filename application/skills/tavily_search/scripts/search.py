@@ -117,7 +117,10 @@ def format_search_results(results: Dict[str, Any], max_snippet_length: int = 150
         output.append("-" * 40)
         
         for i, image in enumerate(results["images"], 1):
-            output.append(f"{i}. {image.get('url', 'No URL')}")
+            if isinstance(image, dict):
+                output.append(f"{i}. {image.get('url', 'No URL')}")
+            else:
+                output.append(f"{i}. {image}")
         
         output.append("")
     

@@ -88,9 +88,12 @@ def get_chat(extended_thinking):
     modelId = profile['model_id']
     model_type = profile['model_type']
     if model_type == 'claude':
-        maxOutputTokens = 4096 # 4k
+        if "claude-4" in modelId or "claude-sonnet-4" in modelId or "claude-opus-4" in modelId or "claude-haiku-4" in modelId:
+            maxOutputTokens = 16384
+        else:
+            maxOutputTokens = 8192
     else:
-        maxOutputTokens = 5120 # 5k
+        maxOutputTokens = 5120
 
     logger.info(f"LLM: bedrock_region: {bedrock_region}, modelId: {modelId}, model_type: {model_type}")
 

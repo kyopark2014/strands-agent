@@ -97,6 +97,13 @@ aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
 aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
 aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
 
+def get_max_output_tokens(mid: str = "") -> int:
+    """Return the max output tokens based on the model ID."""
+    mid = mid or model_id
+    if "claude-4" in mid or "claude-sonnet-4" in mid or "claude-opus-4" in mid or "claude-haiku-4" in mid:
+        return 16384
+    return 8192
+
 def update(modelName, reasoningMode, debugMode, multiRegion, gradingMode, skillMode):    
     global model_name, model_id, model_type, reasoning_mode, debug_mode, multi_region, grading_mode, skill_mode
 
@@ -297,9 +304,9 @@ def isKorean(text):
     
 def get_chat(extended_thinking):
     if model_type == 'claude':
-        maxOutputTokens = 4096 # 4k
+        maxOutputTokens = get_max_output_tokens()
     else:
-        maxOutputTokens = 5120 # 5k
+        maxOutputTokens = 5120
     
     logger.info(f"LLM: bedrock_region: {bedrock_region}, modelId: {model_id}, model_type: {model_type}")
 
@@ -748,7 +755,7 @@ def general_conversation(query):
     
     # Set model parameters
     if model_type == 'claude':
-        maxOutputTokens = 4096
+        maxOutputTokens = get_max_output_tokens()
         STOP_SEQUENCE = "\n\nHuman:"
     else:
         maxOutputTokens = 5120
@@ -996,7 +1003,7 @@ def run_rag_with_knowledge_base(query, st):
     
     # Set model parameters
     if model_type == 'claude':
-        maxOutputTokens = 4096
+        maxOutputTokens = get_max_output_tokens()
         STOP_SEQUENCE = "\n\nHuman:"
     else:
         maxOutputTokens = 5120

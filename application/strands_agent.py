@@ -226,6 +226,15 @@ def execute_code(code: str) -> str:
 
     try:
         os.chdir(WORKING_DIR)
+
+        skill_paths = []
+        if os.path.isdir(SKILLS_DIR):
+            for entry in os.listdir(SKILLS_DIR):
+                sp = os.path.join(SKILLS_DIR, entry)
+                if os.path.isdir(sp) and sp not in sys.path:
+                    sys.path.insert(0, sp)
+                    skill_paths.append(sp)
+
         old_stdout, old_stderr = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = stdout_capture, stderr_capture
 
@@ -249,6 +258,9 @@ def execute_code(code: str) -> str:
 
         sys.stdout, sys.stderr = old_stdout, old_stderr
         os.chdir(old_cwd)
+        for sp in skill_paths:
+            if sp in sys.path:
+                sys.path.remove(sp)
 
         output = stdout_capture.getvalue()
         errors = stderr_capture.getvalue()
@@ -266,6 +278,9 @@ def execute_code(code: str) -> str:
     except Exception as e:
         sys.stdout, sys.stderr = old_stdout, old_stderr
         os.chdir(old_cwd)
+        for sp in skill_paths:
+            if sp in sys.path:
+                sys.path.remove(sp)
         tb = traceback.format_exc()
         logger.error(f"Code execution error: {tb}")
         return f"Error executing code:\n{tb}"
@@ -405,9 +420,9 @@ def get_model():
         STOP_SEQUENCE = "" 
 
     if chat.model_type == 'claude':
-        maxOutputTokens = 4096 # 4k
+        maxOutputTokens = chat.get_max_output_tokens()
     else:
-        maxOutputTokens = 5120 # 5k
+        maxOutputTokens = 5120
 
     maxReasoningOutputTokens=64000
     thinking_budget = min(maxOutputTokens, maxReasoningOutputTokens-1000)

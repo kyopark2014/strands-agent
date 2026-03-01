@@ -1,0 +1,71 @@
+2026-03-01 17:58:59 - INFO - ============================================================
+2026-03-01 17:58:59 - INFO - Starting AWS Infrastructure Deployment
+2026-03-01 17:58:59 - INFO - ============================================================
+2026-03-01 17:58:59 - INFO - Project: strands
+2026-03-01 17:58:59 - INFO - Region: us-west-2
+2026-03-01 17:58:59 - INFO - Account ID: 262976740991
+2026-03-01 17:58:59 - INFO - Bucket Name: storage-for-strands-262976740991-us-west-2
+2026-03-01 17:58:59 - INFO - ============================================================
+2026-03-01 17:58:59 - INFO - [1/10] Creating S3 bucket: storage-for-strands-262976740991-us-west-2
+2026-03-01 17:59:00 - WARNING - S3 bucket already exists: storage-for-strands-262976740991-us-west-2
+2026-03-01 17:59:00 - INFO - S3 bucket created...
+2026-03-01 17:59:00 - INFO - [2/10] Creating Knowledge Base IAM role
+2026-03-01 17:59:01 - WARNING - IAM role already exists: role-knowledge-base-for-strands-us-west-2
+2026-03-01 17:59:02 - INFO - [2/10] Creating Agent IAM role
+2026-03-01 17:59:02 - WARNING - IAM role already exists: role-agent-for-strands-us-west-2
+2026-03-01 17:59:04 - INFO - [2/10] Creating EC2 IAM role
+2026-03-01 17:59:04 - WARNING - IAM role already exists: role-ec2-for-strands-us-west-2
+2026-03-01 17:59:09 - INFO - [2/10] Creating AgentCore Memory IAM role
+2026-03-01 17:59:09 - WARNING - IAM role already exists: role-agentcore-memory-for-strands-us-west-2
+2026-03-01 17:59:09 - INFO - IAM roles created...
+2026-03-01 17:59:09 - INFO - [3/10] Creating Secrets Manager secrets
+2026-03-01 17:59:09 - INFO - Please enter API keys when prompted (press Enter to skip and leave empty):
+2026-03-01 17:59:10 - WARNING -   Secret already exists: openweathermap-strands
+2026-03-01 17:59:10 - WARNING -   Secret already exists: langsmithapikey-strands
+2026-03-01 17:59:10 - WARNING -   Secret already exists: tavilyapikey-strands
+2026-03-01 17:59:10 - WARNING -   Secret already exists: perplexityapikey-strands
+2026-03-01 17:59:10 - WARNING -   Secret already exists: firecrawlapikey-strands
+2026-03-01 17:59:11 - WARNING -   Secret already exists: novaactapikey-strands
+2026-03-01 17:59:11 - WARNING -   Secret already exists: notionapikey-strands
+2026-03-01 17:59:11 - INFO - ✓ Created 7 secrets
+2026-03-01 17:59:11 - INFO - Secrets created...
+2026-03-01 17:59:11 - INFO - [4/10] Creating OpenSearch Serverless collection
+2026-03-01 17:59:11 - WARNING - OpenSearch collection already exists: strands
+2026-03-01 17:59:12 - INFO - OpenSearch collection created...
+2026-03-01 17:59:12 - INFO - [4.5/10] Creating Knowledge Base with OpenSearch collection
+2026-03-01 17:59:12 - INFO -   Creating vector index in OpenSearch collection...
+2026-03-01 17:59:12 - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2026-03-01 17:59:12 - INFO -   Checking if Knowledge Base already exists...
+2026-03-01 17:59:13 - WARNING - Knowledge Base already exists: LO0X8ILYVK
+2026-03-01 17:59:13 - INFO - Knowledge Base is using correct OpenSearch collection
+2026-03-01 17:59:13 - INFO - Knowledge base created...
+2026-03-01 17:59:13 - INFO - [5/10] Creating VPC and networking resources
+2026-03-01 17:59:14 - INFO - Using CIDR block: 172.17.0.0/16
+2026-03-01 17:59:14 - WARNING - VPC already exists: vpc-0a894962379fdcb17
+2026-03-01 17:59:16 - INFO -   Added internet gateway route to main route table: rtb-01c2a8611ddc77b6e
+2026-03-01 17:59:16 - INFO - VPC created...
+2026-03-01 17:59:16 - INFO - [6/10] Creating Application Load Balancer
+2026-03-01 17:59:16 - WARNING - ALB already exists: alb-for-strands-1737416974.us-west-2.elb.amazonaws.com
+2026-03-01 17:59:16 - INFO - ALB created...
+2026-03-01 17:59:16 - INFO - [7/10] Creating CloudFront distribution (ALB + S3 hybrid)
+2026-03-01 17:59:17 - WARNING - CloudFront distribution already exists: d3h3h4v1289atl.cloudfront.net
+2026-03-01 17:59:17 - INFO - CloudFront distribution created...
+2026-03-01 17:59:17 - INFO - [8/10] Creating EC2 instance
+2026-03-01 17:59:22 - INFO - ✓ EC2 instance created: i-024cfefef8d89e6aa
+2026-03-01 17:59:22 - INFO -   Instance type: t3.medium
+2026-03-01 17:59:22 - INFO -   Deployed in private subnet: subnet-0a9bba9a4fae0a022
+2026-03-01 17:59:22 - INFO -   User data script configured for application deployment
+2026-03-01 17:59:22 - INFO - EC2 instance created...
+2026-03-01 17:59:22 - INFO - [9/10] Creating ALB target group and listener
+2026-03-01 17:59:22 - WARNING -   Target group already exists: arn:aws:elasticloadbalancing:us-west-2:262976740991:targetgroup/TG-for-strands/937fb925ae6c480a
+2026-03-01 17:59:38 - INFO -   ✓ Registered EC2 instance i-024cfefef8d89e6aa to target group
+2026-03-01 17:59:39 - WARNING -   Listener already exists on port 80: arn:aws:elasticloadbalancing:us-west-2:262976740991:listener/app/alb-for-strands/fedeaef3118ab366/1d8a44dc7f422d28
+2026-03-01 17:59:39 - WARNING -   Rule with Priority 10 for custom header already exists: arn:aws:elasticloadbalancing:us-west-2:262976740991:listener-rule/app/alb-for-strands/fedeaef3118ab366/1d8a44dc7f422d28/85f167acbe37511c
+2026-03-01 17:59:39 - INFO - ✓ ALB target group and listener created
+2026-03-01 17:59:39 - INFO -   Target group: arn:aws:elasticloadbalancing:us-west-2:262976740991:targetgroup/TG-for-strands/937fb925ae6c480a
+2026-03-01 17:59:39 - INFO -   Listener: arn:aws:elasticloadbalancing:us-west-2:262976740991:listener/app/alb-for-strands/fedeaef3118ab366/1d8a44dc7f422d28
+2026-03-01 17:59:39 - INFO - ALB target group and listener created...
+2026-03-01 17:59:39 - INFO - Checking if application is ready: d3h3h4v1289atl.cloudfront.net
+2026-03-01 17:59:39 - INFO - [10/10] Checking if application is ready at https://d3h3h4v1289atl.cloudfront.net
+2026-03-01 17:59:39 - INFO -   Maximum 120 attempts, 10 seconds between attempts (up to 20 minutes)
+2026-03-01 17:59:39 - INFO -   In progress... [1/120] - HTTP 502 response
