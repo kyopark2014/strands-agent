@@ -187,6 +187,8 @@ with st.sidebar:
     modelName = st.selectbox(
         '🖊️ 사용 모델을 선택하세요',
         (
+            "Claude 4.6 Claude",
+            "Claude 4.6 Opus",
             "Claude 4.5 Haiku",
             "Claude 4.5 Sonnet",
             "Claude 4.5 Opus",  
@@ -202,8 +204,8 @@ with st.sidebar:
             "Nova Premier", 
             "Nova Pro", 
             "Nova Lite", 
-            "Nova Micro",            
-        ), index=0
+            "Nova Micro",       
+        ), index=2
     )
 
     # skill checkbox
