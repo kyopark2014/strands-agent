@@ -22,7 +22,7 @@ from io import BytesIO
 from langchain_core.documents import Document
 from botocore.exceptions import ClientError
 from langchain_core.messages import HumanMessage, AIMessage
-
+from typing import Literal, Optional
 # Simple memory class to replace ConversationBufferWindowMemory
 class SimpleMemory:
     def __init__(self, k=5):
@@ -1560,7 +1560,7 @@ def get_tool_info(tool_name, tool_content):
 
     return content, urls, tool_references
 
-async def run_strands_agent(query, strands_tools, mcp_servers, containers):
+async def run_strands_agent(query: str, strands_tools: list[str], mcp_servers: list[str], plugin_name: Optional[str], containers: dict):
     global tool_list, index
     tool_list = []
     index = 0
@@ -1572,7 +1572,8 @@ async def run_strands_agent(query, strands_tools, mcp_servers, containers):
     await strands_agent.initiate_agent(
         system_prompt=None, 
         strands_tools=strands_tools, 
-        mcp_servers=mcp_servers
+        mcp_servers=mcp_servers,
+        plugin_name=plugin_name
     )
     logger.info(f"tool_list: {tool_list}")    
 

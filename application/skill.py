@@ -265,7 +265,6 @@ COMMAND_USAGE_GUIDE = (
     "필요한 경우 get_skill_instructions로 skill 지침을 추가 로드하거나, execute_code, write_file 등 도구를 사용하세요.\n"
 )
 
-
 def build_command_prompt(plugin_name: str, command: str) -> str:
     """Build prompt for command mode: path info, command instructions, and available skills."""
     skill_info = selected_skill_info(plugin_name)

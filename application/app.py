@@ -99,7 +99,9 @@ with st.sidebar:
     st.subheader("🐱 대화 형태")
     
     # radio selection
-    options = ["일상적인 대화", 'RAG', 'Agent', 'Strands Supervisor', 'Strands Swarm', 'Strands Swarm Tool', 'Strands Code Swarm', 'Strands Workflow', 'Strands Graph', 'Strands Graph Builder', 'Strands Plan and Execute', 'Strands Graph With Loop', 'enterprise-search', 'productivity', 'frontend-design'] + [plugin["name"] for plugin in plugin_list]
+    options = [
+        "일상적인 대화", 'RAG', 'Agent', 'Strands Supervisor', 'Strands Swarm', 'Strands Swarm Tool', 'Strands Code Swarm', 'Strands Workflow', 'Strands Graph', \
+        'Strands Graph Builder', 'Strands Plan and Execute', 'Strands Graph With Loop'] + [plugin["name"] for plugin in plugin_list]
     mode = st.radio(label="원하는 대화 형태를 선택하세요. ", options=options, index=2)   
     st.info(mode_descriptions[mode][0])    
 
@@ -480,6 +482,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                     query=prompt, 
                     strands_tools=selected_strands_tools, 
                     mcp_servers=selected_mcp_servers, 
+                    plugin_name="base",
                     containers=containers))
 
         elif mode == 'Strands Supervisor':

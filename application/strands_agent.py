@@ -9,6 +9,7 @@ import boto3
 import traceback
 import yaml
 import io
+import skill
 
 from contextlib import contextmanager
 from typing import Dict, List, Optional
@@ -56,10 +57,6 @@ WORKING_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILLS_DIR = os.path.join(WORKING_DIR, "skills")
 ARTIFACTS_DIR = os.path.join(WORKING_DIR, "artifacts")
 
-# ═══════════════════════════════════════════════════════════════════
-#  1. Skill System  – Anthropic Agent Skills spec 구현
-#     (https://agentskills.io/specification)
-# ═══════════════════════════════════════════════════════════════════
 
 @dataclass
 class Skill:
@@ -183,18 +180,17 @@ BASE_SYSTEM_PROMPT = (
     "5. 최종 결과를 사용자에게 전달한다\n"
 )
 
-def build_system_prompt(custom_prompt: Optional[str] = None) -> str:
+def build_system_prompt(custom_prompt: Optional[str] = None, plugin_name: Optional[str] = None, command: Optional[str] = None) -> str:
     """Assemble the full system prompt with available skills metadata."""
     if custom_prompt:
         base = custom_prompt
+    elif command:
+        base = skill.build_command_prompt(plugin_name, command)
+    elif plugin_name:
+        base = skill.build_skill_prompt(plugin_name)
     else:
         base = BASE_SYSTEM_PROMPT
 
-    skills_xml = skill_manager.available_skills_xml()
-    logger.info(f"skills_xml: {skills_xml}")
-
-    if skills_xml:
-        return f"{base}\n\n{skills_xml}\n{SKILL_USAGE_GUIDE}"
     return base
 
 # ═══════════════════════════════════════════════════════════════════
@@ -784,7 +780,7 @@ def update_tools(strands_tools: list, mcp_servers: list):
             
     return tools
 
-def create_agent(system_prompt, tools):
+def create_agent(system_prompt: Optional[str], tools: list, plugin_name: Optional[str], command: Optional[str] = None):
     if system_prompt==None:
         system_prompt = (
             "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
@@ -796,7 +792,7 @@ def create_agent(system_prompt, tools):
         system_prompt = "You are a helpful AI assistant."
     
     # add skills metadata to system prompt
-    system_prompt = build_system_prompt(system_prompt)
+    system_prompt = build_system_prompt(system_prompt, plugin_name, command)
 
     model = get_model()
     
@@ -821,7 +817,7 @@ def get_tool_list(tools):
             tool_list.append(module_name)
     return tool_list
 
-async def initiate_agent(system_prompt, strands_tools, mcp_servers):
+async def initiate_agent(system_prompt: Optional[str], strands_tools: list[str], mcp_servers: list[str], plugin_name: Optional[str]):
     global agent, initiated
     global selected_strands_tools, selected_mcp_servers, tool_list
 
@@ -854,7 +850,7 @@ async def initiate_agent(system_prompt, strands_tools, mcp_servers):
                 else:
                     logger.info(f"builtin_tool {bt.tool_name} already in tools")
 
-        agent = create_agent(system_prompt, tools)
+        agent = create_agent(system_prompt, tools, plugin_name)
         tool_list = get_tool_list(tools)
 
         if not initiated:
