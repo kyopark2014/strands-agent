@@ -60,7 +60,7 @@ config_path = os.path.join(workingDir, "config.json")
 config = utils.load_config()
 
 bedrock_region = config.get("region", "us-west-2")
-projectName = config.get("projectName", "mcp-rag")
+projectName = config.get("projectName", "strands")
 accountId = config.get("accountId", None)
 knowledge_base_id = config.get('knowledge_base_id', None)
 account_id = config.get("accountId", None)
@@ -75,16 +75,13 @@ s3_prefix = 'docs'
 s3_image_prefix = 'images'
 doc_prefix = s3_prefix+'/'
 
-model_name = "Claude 3.7 Sonnet"
+model_name = "Claude 4.6 Sonnet"
 model_type = "claude"
 debug_mode = "Enable"
-model_id = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+model_id = "us.anthropic.claude-sonnet-4-6"
 models = info.get_model_info(model_name)
 bedrock_region = "us-west-2"
 reasoning_mode = 'Disable'
-grading_mode = 'Disable'
-multi_region = "Disable"
-grading_mode = 'Disable'
 skill_mode = 'Disable'
 
 # Memory related variables
@@ -104,8 +101,8 @@ def get_max_output_tokens(mid: str = "") -> int:
         return 16384
     return 8192
 
-def update(modelName, reasoningMode, debugMode, multiRegion, gradingMode, skillMode):    
-    global model_name, model_id, model_type, reasoning_mode, debug_mode, multi_region, grading_mode, skill_mode
+def update(modelName, reasoningMode, debugMode, skillMode):    
+    global model_name, model_id, model_type, reasoning_mode, debug_mode, skill_mode
 
     # load mcp.env    
     mcp_env = utils.load_mcp_env()
@@ -124,16 +121,6 @@ def update(modelName, reasoningMode, debugMode, multiRegion, gradingMode, skillM
     if debugMode != debug_mode:
         debug_mode = debugMode
         logger.info(f"debug_mode: {debug_mode}")        
-
-    if multiRegion != multi_region:
-        multi_region = multiRegion
-        logger.info(f"multi_region: {multi_region}")
-        mcp_env['multi_region'] = multi_region
-
-    if gradingMode != grading_mode:
-        grading_mode = gradingMode
-        logger.info(f"grading_mode: {grading_mode}")
-        mcp_env['grading_mode'] = grading_mode
 
     if skillMode != skill_mode:
         skill_mode = skillMode
@@ -1581,33 +1568,6 @@ async def run_strands_agent(query, strands_tools, mcp_servers, containers):
     image_url = []
     references = []
 
-    # initate memory variables
-    memory_id, actor_id, session_id, namespace = agentcore_memory.load_memory_variables(user_id)
-    logger.info(f"memory_id: {memory_id}, actor_id: {actor_id}, session_id: {session_id}, namespace: {namespace}")
-
-    if memory_id is None:
-        # retrieve memory id
-        memory_id = agentcore_memory.retrieve_memory_id()
-        logger.info(f"memory_id: {memory_id}")        
-        
-        # create memory if not exists
-        if memory_id is None:
-            logger.info(f"Memory will be created...")
-            memory_id = agentcore_memory.create_memory(namespace)
-            logger.info(f"Memory was created... {memory_id}")
-        
-        # create strategy if not exists
-        agentcore_memory.create_strategy_if_not_exists(
-            memory_id=memory_id, namespace=namespace, strategy_name=user_id)
-
-        # save memory variables
-        agentcore_memory.update_memory_variables(
-            user_id=user_id, 
-            memory_id=memory_id, 
-            actor_id=actor_id, 
-            session_id=session_id, 
-            namespace=namespace)
-    
     # initiate agent
     await strands_agent.initiate_agent(
         system_prompt=None, 
@@ -1704,8 +1664,4 @@ async def run_strands_agent(query, strands_tools, mcp_servers, containers):
         if containers is not None:
             containers['notification'][index].markdown(final_result)
 
-    # save event to memory
-    if memory_id is not None and result:
-        agentcore_memory.save_conversation_to_memory(memory_id, actor_id, session_id, query, result) 
-    
     return final_result, image_url

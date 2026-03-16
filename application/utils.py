@@ -4,13 +4,6 @@ import json
 import traceback
 import boto3
 import os
-
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from langchain_community.utilities.tavily_search import TavilySearchAPIWrapper
 
 logging.basicConfig(
@@ -27,15 +20,29 @@ aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
 aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
 aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
 
+workingDir = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(workingDir, "config.json")
+
 def load_config():
     config = None
-    
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(script_dir, "config.json")
-    
+        
     with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
     
+        projectName = "strands"
+        session = boto3.Session()
+        region = session.region_name
+        config['region'] = region
+        config['projectName'] = projectName
+        
+        sts = boto3.client("sts")
+        response = sts.get_caller_identity()
+        accountId = response["Account"]
+        config['accountId'] = accountId
+        config['s3_bucket'] = f'storage-for-{projectName}-{accountId}-{region}'
+        
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)    
     return config
 
 config = load_config()
@@ -197,71 +204,3 @@ def get_notion_key():
             # raise e
             pass
     return notion_key
-
-
-async def generate_pdf_report(report_content: str, filename: str) -> str:
-    """
-    Generates a PDF report from the research findings.
-    Args:
-        report_content: The content to be converted into PDF format
-        filename: Base name for the generated PDF file
-    Returns:
-        A message indicating the result of PDF generation
-    """
-    logger.info(f'###### generate_pdf_report ######')
-    try:
-        # Ensure directory exists
-        os.makedirs("artifacts", exist_ok=True)
-        # Set up the PDF file
-        filepath = f"artifacts/{filename}.pdf"
-        logger.info(f"filepath: {filepath}")
-        doc = SimpleDocTemplate(filepath, pagesize=letter)
-        # Register TTF font directly (specify path to NanumGothic font file)
-        font_path = "assets/NanumGothic-Regular.ttf"  # Change to actual TTF file path
-        pdfmetrics.registerFont(TTFont('NanumGothic', font_path))
-        # Create styles
-        styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name='Normal_KO',
-                                fontName='NanumGothic',
-                                fontSize=10,
-                                spaceAfter=12))  # 문단 간격 증가
-        styles.add(ParagraphStyle(name='Heading1_KO',
-                                fontName='NanumGothic',
-                                fontSize=16,
-                                spaceAfter=20,  # 제목 후 여백 증가
-                                textColor=colors.HexColor('#0000FF')))  # 파란색
-        styles.add(ParagraphStyle(name='Heading2_KO',
-                                fontName='NanumGothic',
-                                fontSize=14,
-                                spaceAfter=16,  # 제목 후 여백 증가
-                                textColor=colors.HexColor('#0000FF')))  # 파란색
-        styles.add(ParagraphStyle(name='Heading3_KO',
-                                fontName='NanumGothic',
-                                fontSize=12,
-                                spaceAfter=14,  # 제목 후 여백 증가
-                                textColor=colors.HexColor('#0000FF')))  # 파란색
-        # Process content
-        elements = []
-        lines = report_content.split('\n')
-        for line in lines:
-            if line.startswith('# '):
-                elements.append(Paragraph(line[2:], styles['Heading1_KO']))
-            elif line.startswith('## '):
-                elements.append(Paragraph(line[3:], styles['Heading2_KO']))
-            elif line.startswith('### '):
-                elements.append(Paragraph(line[4:], styles['Heading3_KO']))
-            elif line.strip():  # Skip empty lines
-                elements.append(Paragraph(line, styles['Normal_KO']))
-        # Build PDF
-        doc.build(elements)
-        return f"PDF report generated successfully: {filepath}"
-    except Exception as e:
-        logger.error(f"Error generating PDF: {e}")
-        # Fallback to text file
-        try:
-            text_filepath = f"artifacts/{filename}.txt"
-            with open(text_filepath, 'w', encoding='utf-8') as f:
-                f.write(report_content)
-            return f"PDF generation failed. Saved as text file instead: {text_filepath}"
-        except Exception as text_error:
-            return f"Error generating report: {str(e)}. Text fallback also failed: {str(text_error)}"

@@ -17,8 +17,9 @@ import strands_code_swarm
 import strands_graph_builder
 import strands_plan_and_execute
 import strands_graph_with_loop
-
-from langchain_core.documents import Document
+import plugin
+import utils
+import skill
 
 logging.basicConfig(
     level=logging.INFO,  
@@ -31,8 +32,13 @@ logger = logging.getLogger("streamlit")
 
 os.environ["DEV"] = "true"  # Skip user confirmation of get_user_input
 
+config = utils.load_config()
+
 # title
 st.set_page_config(page_title='Strands Agent', page_icon=None, layout="centered", initial_sidebar_state="auto", menu_items=None)
+
+plugin_list = plugin.available_plugins_list()
+logger.info(f"plugin_list: {plugin_list}")
 
 mode_descriptions = {
     "일상적인 대화": [
@@ -70,6 +76,15 @@ mode_descriptions = {
     ],
     "Strands Graph With Loop": [
         "Graph With Loop를 이용한 Multi-agent Collaboration입니다. 여기에서는 Graph With Loop의 구조를 가지고 있습니다."
+    ],
+    "enterprise-search": [
+        "Email, chat, documents, and wikis 등 다양한 도구를 이용해 검색을 합니다."
+    ],
+    "productivity": [
+        "Task management, workplace memory, visual dashboard를 이용한 작업을 관리합니다."
+    ],
+    "frontend-design": [
+        "Frontend Design Plugin을 사용할 수 있습니다."
     ]
 }
 
@@ -84,75 +99,69 @@ with st.sidebar:
     st.subheader("🐱 대화 형태")
     
     # radio selection
-    mode = st.radio(
-        label="원하는 대화 형태를 선택하세요. ",options=["일상적인 대화", 'RAG', 'Agent', 'Strands Supervisor', 'Strands Swarm', 'Strands Swarm Tool', 'Strands Code Swarm', 'Strands Workflow', 'Strands Graph', 'Strands Graph Builder', 'Strands Plan and Execute', 'Strands Graph With Loop'], index=2
-    )   
+    options = ["일상적인 대화", 'RAG', 'Agent', 'Strands Supervisor', 'Strands Swarm', 'Strands Swarm Tool', 'Strands Code Swarm', 'Strands Workflow', 'Strands Graph', 'Strands Graph Builder', 'Strands Plan and Execute', 'Strands Graph With Loop', 'enterprise-search', 'productivity', 'frontend-design'] + [plugin["name"] for plugin in plugin_list]
+    mode = st.radio(label="원하는 대화 형태를 선택하세요. ", options=options, index=2)   
     st.info(mode_descriptions[mode][0])    
 
     strands_tools = ["calculator", "current_time"]
-    mcp_tools = [
-        "basic", 
-        "tavily", 
-        "use_aws", 
-        "code interpreter", 
-        "knowledge base", 
-        "trade_info",
-        "drawio",
-        "web_fetch",
-        "text_extraction",
-        "slack",
-        "gog",
-        "사용자 설정"
-    ]
 
     mcp_selections = {}
     strands_selections = {}
     default_strands_tools = []
     default_mcp_selections = ["basic", "filesystem", "use_aws"]
+
+    # mcp selection    
+    mcp_options = [
+        "basic", 
+        "use-aws", 
+        "tavily", 
+        "knowledge base", 
+        "aws_documentation", 
+        "trade_info", 
+        "code interpreter", 
+        "web_fetch",
+        "drawio",
+        "text_extraction",
+        "slack",
+        "notion",
+        "outlook",
+        "gog",
+        "사용자 설정"
+    ]
     
     if mode=="Agent" or mode=="Agent (Chat)":
-        with st.expander("MCP 옵션 선택", expanded=True):            
-            # Create two columns
-            col1, col2 = st.columns(2)
-            
-            # Split options into two groups
-            mid_point = len(mcp_tools) // 2
-            first_half = mcp_tools[:mid_point]
-            second_half = mcp_tools[mid_point:]
-            
-            # Display first group in the first column
-            with col1:
-                for option in first_half:
-                    default_value = option in default_mcp_selections
-                    mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
-            
-            # Display second group in the second column
-            with col2:
-                for option in second_half:
-                    default_value = option in default_mcp_selections
-                    mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
-    
-        with st.expander("Strands Tools 옵션 선택", expanded=True):            
-            # Create two columns
-            col1, col2 = st.columns(2)
-            
-            # Split options into two groups
-            mid_point = len(strands_tools) // 2
-            first_half = strands_tools[:mid_point]
-            second_half = strands_tools[mid_point:]
-            
-            # Display first group in the first column
-            with col1:
-                for option in first_half:
-                    default_value = option in default_strands_tools
-                    strands_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
-            
-            # Display second group in the second column
-            with col2:
-                for option in second_half:
-                    default_value = option in default_strands_tools
-                    strands_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+        # Skill Config JSON input
+        st.subheader("⚙️ Skill Config")
 
+        skill_selections = {}
+        default_skill_selections = config.get("default_skills") or ["pdf", "notion", "memory-manager"]
+        logger.info(f"default_skill_selections: {default_skill_selections}")
+        with st.expander("Skill 옵션 선택", expanded=True):
+            available_skill_info = skill.available_skill_info("base")
+            for s in available_skill_info:
+                default_value = s["name"] in default_skill_selections
+                skill_selections[s["name"]] = st.checkbox(s["name"], key=f"skill_{s['name']}", value=default_value, help=s["description"], disabled=False)
+    
+        selected_skills = [name for name, is_selected in skill_selections.items() if is_selected]
+        logger.info(f"selected_skills: {selected_skills}")
+
+        if selected_skills != config.get("default_skills"):
+            config["default_skills"] = selected_skills
+            with open(utils.config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
+
+        # MCP Config JSON input
+        st.subheader("⚙️ MCP Config")
+
+        # Change radio to checkbox        
+        mcp_selections = {}
+        default_selections = ["code interpreter", "aws_documentation"]
+        
+        with st.expander("MCP 옵션 선택", expanded=True):
+            for option in mcp_options:
+                default_value = option in default_selections
+                mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+                
         if mcp_selections["사용자 설정"]:
             mcp = {}
             try:
@@ -184,10 +193,114 @@ with st.sidebar:
                     mcp_config.mcp_user_config = {}
             else:
                 mcp_config.mcp_user_config = {}
-                    
+                
             with open("user_defined_mcp.json", "w", encoding="utf-8") as f:
                 json.dump(mcp_config.mcp_user_config, f, ensure_ascii=False, indent=4)
             logger.info("save to user_defined_mcp.json")
+        
+        mcp_servers = [server for server, is_selected in mcp_selections.items() if is_selected]
+
+    # plugin selection
+    elif mode in [plugin["name"] for plugin in plugin_list]:
+        # Plugin Skill Config JSON input
+        st.subheader("⚙️ Plugin Config")
+
+        plugin_skill_selections = {}
+        default_plugin_skill_selections = config.get("plugin_skills", {}).get(mode) or [s["name"] for s in plugin.available_plugin_skills(mode)]
+        logger.info(f"default_plugin_skill_selections: {default_plugin_skill_selections}")
+
+        with st.expander("Plugin Skill 옵션 선택", expanded=True):
+            plugin_skill_info = skill.available_skill_info(mode)
+            logger.info(f"plugin_skill_info: {plugin_skill_info}")
+            for s in plugin_skill_info:
+                default_value = s["name"] in default_plugin_skill_selections
+                plugin_skill_selections[s["name"]] = st.checkbox(s["name"], key=f"plugin_skill_{s['name']}", value=default_value, help=s["description"], disabled=False)
+    
+        plugin_skills = [name for name, is_selected in plugin_skill_selections.items() if is_selected]
+        logger.info(f"plugin_skills: {plugin_skills}")
+
+        if plugin_skills != config.get("plugin_skills", {}).get(mode):
+            config.setdefault("plugin_skills", {})[mode] = plugin_skills
+            with open(utils.config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
+            logger.info("save to config.json")
+
+        # Skill Config JSON input
+        st.subheader("⚙️ Skill Config")
+
+        skill_selections = {}
+        default_skill_selections = config.get("default_skills") or []
+        with st.expander("Skill 옵션 선택", expanded=True):
+            skill_info = skill.available_skill_info("base")
+            for s in skill_info:
+                default_value = s["name"] in default_skill_selections
+                skill_selections[s["name"]] = st.checkbox(s["name"], key=f"skill_{s['name']}", value=default_value, help=s["description"], disabled=False)
+    
+        selected_skills = [name for name, is_selected in skill_selections.items() if is_selected]
+        logger.info(f"selected_skills: {selected_skills}")
+
+        if selected_skills != config.get("default_skills"):
+            config["default_skills"] = selected_skills
+            with open(utils.config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
+            logger.info("save to config.json")
+
+        # MCP Config JSON input
+        st.subheader("⚙️ MCP Config")
+
+        # Change radio to checkbox
+        mcp_selections = {}
+
+        plugin_path = os.path.join(plugin.PLUGINS_DIR, mode)
+        default_selections = plugin.load_plugin_mcp_servers_from_list(plugin_path)
+        
+        with st.expander("MCP 옵션 선택", expanded=True):
+            for option in mcp_options:
+                default_value = option in default_selections
+                mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
+                
+        if mcp_selections["사용자 설정"]:
+            mcp = {}
+            try:
+                with open("user_defined_mcp.json", "r", encoding="utf-8") as f:
+                    mcp = json.load(f)
+                    logger.info(f"loaded user defined mcp: {mcp}")
+            except FileNotFoundError:
+                logger.info("user_defined_mcp.json not found")
+                pass
+            
+            mcp_json_str = json.dumps(mcp, ensure_ascii=False, indent=2) if mcp else ""
+            
+            mcp_info = st.text_area(
+                "MCP 설정을 JSON 형식으로 입력하세요",
+                value=mcp_json_str,
+                height=150
+            )
+            logger.info(f"mcp_info: {mcp_info}")
+
+            if mcp_info:
+                try:
+                    mcp_config.mcp_user_config = json.loads(mcp_info)
+                    logger.info(f"mcp_user_config: {mcp_config.mcp_user_config}")                    
+                    st.success("JSON 설정이 성공적으로 로드되었습니다.")                    
+                except json.JSONDecodeError as e:
+                    st.error(f"JSON 파싱 오류: {str(e)}")
+                    st.error("올바른 JSON 형식으로 입력해주세요.")
+                    logger.error(f"JSON 파싱 오류: {str(e)}")
+                    mcp_config.mcp_user_config = {}
+            else:
+                mcp_config.mcp_user_config = {}
+                
+            with open("user_defined_mcp.json", "w", encoding="utf-8") as f:
+                json.dump(mcp_config.mcp_user_config, f, ensure_ascii=False, indent=4)
+            logger.info("save to user_defined_mcp.json")
+        
+        mcp_servers = [server for server, is_selected in mcp_selections.items() if is_selected]
+
+    else:
+        mcp_servers = []
+        selected_skills = []
+
 
     # model selection box
     modelName = st.selectbox(
@@ -211,7 +324,7 @@ with st.sidebar:
             "Nova Pro", 
             "Nova Lite", 
             "Nova Micro",       
-        ), index=2
+        ), index=0
     )
 
     # skill checkbox
@@ -229,15 +342,6 @@ with st.sidebar:
         reasoningMode = 'Enable' if select_reasoning else 'Disable'
         logger.info(f"reasoningMode: {reasoningMode}")
 
-    # multi region check box
-    select_multiRegion = st.checkbox('Multi Region', value=False)
-    multiRegion = 'Enable' if select_multiRegion else 'Disable'
-
-    # RAG grading
-    select_grading = st.checkbox('Grading (RAG)', value=False)
-    gradingMode = 'Enable' if select_grading else 'Disable'
-    # logger.info(f"gradingMode: {gradingMode}")
-
     uploaded_file = None
     if mode=="RAG" or mode=="Agent" or mode=="Agent (Chat)":
         st.subheader("📋 문서 업로드")
@@ -246,7 +350,7 @@ with st.sidebar:
     selected_strands_tools = [tool for tool, is_selected in strands_selections.items() if is_selected]
     selected_mcp_servers = [server for server, is_selected in mcp_selections.items() if is_selected]
     
-    chat.update(modelName, reasoningMode, debugMode, multiRegion, gradingMode, skillMode)
+    chat.update(modelName, reasoningMode, debugMode, skillMode)
 
     st.success(f"Connected to {modelName}", icon="💚")
     clear_button = st.button("대화 초기화", key="clear")

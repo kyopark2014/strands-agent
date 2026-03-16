@@ -496,53 +496,7 @@ class MCPClientManager:
         self.client_configs: Dict[str, dict] = {}  # Store client configurations
         self._persistent_stack: Optional[contextlib.ExitStack] = None
         self._persistent_client_names: List[str] = []
-    
-    def _refresh_bearer_token_and_update_client(self, client_name: str) -> bool:
-        """Refresh bearer token and update client configuration"""
-        try:
-            # Load the original config to get Cognito settings
-            config = mcp_config.load_config(client_name)
-            if not config:
-                logger.error(f"Failed to load config for {client_name}")
-                return False
             
-            # Get fresh bearer token from Cognito
-            bearer_token = mcp_config.create_cognito_bearer_token(utils.load_config())
-            if not bearer_token:
-                logger.error("Failed to get fresh bearer token from Cognito")
-                return False
-            
-            logger.info("Successfully obtained fresh bearer token")
-            
-            # Update the client configuration with new bearer token
-            if client_name in self.client_configs:
-                client_config = self.client_configs[client_name]
-                if 'headers' in client_config:
-                    client_config['headers']['Authorization'] = f"Bearer {bearer_token}"
-                    logger.info(f"Updated bearer token for {client_name}")
-                    
-                    # Save the new bearer token
-                    secret_name = config.get('secret_name')
-                    if secret_name:
-                        mcp_config.save_bearer_token(secret_name, bearer_token)
-                    
-                    # Remove the old client to force recreation
-                    if client_name in self.clients:
-                        del self.clients[client_name]
-                    
-                    logger.info(f"Successfully refreshed bearer token for {client_name}")
-                    return True
-                else:
-                    logger.error(f"No headers found in client config for {client_name}")
-                    return False
-            else:
-                logger.error(f"No client config found for {client_name}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error during bearer token refresh for {client_name}: {e}")
-            return False
-        
     def add_stdio_client(self, name: str, command: str, args: List[str], env: dict[str, str] = {}) -> None:
         """Add a new MCP client configuration (lazy initialization)"""
         self.client_configs[name] = {
@@ -582,19 +536,6 @@ class MCPClientManager:
                         if "403" in str(http_error) or "Forbidden" in str(http_error) or "MCPClientInitializationError" in str(http_error) or "client initialization failed" in str(http_error):
                             logger.error(f"Authentication failed for {name}. Attempting to refresh bearer token...")
                             
-                            # Try to refresh bearer token and retry
-                            if self._refresh_bearer_token_and_update_client(name):
-                                # Retry with new bearer token
-                                logger.info("Retrying MCP client creation with fresh bearer token...")
-                                config = self.client_configs[name]
-                                self.clients[name] = MCPClient(lambda: streamablehttp_client(
-                                    url=config["url"], 
-                                    headers=config["headers"]
-                                ))
-                                
-                                logger.info(f"Successfully created MCP client for {name} after bearer token refresh")
-                            else:
-                                raise http_error
                         else:
                             raise http_error
                 else:
@@ -729,20 +670,7 @@ class MCPClientManager:
                                         if client_obj == client:
                                             client_name = name
                                             break
-                                    
-                                    if client_name:
-                                        if self._refresh_bearer_token_and_update_client(client_name):
-                                            # Retry with new bearer token
-                                            logger.info("Retrying client creation with fresh bearer token...")
-                                            # Remove the old client completely and create a new one
-                                            if client_name in self.clients:
-                                                del self.clients[client_name]
-                                            new_client = self.get_client(client_name)
-                                            if new_client:
-                                                stack.enter_context(new_client)
-                                                logger.info(f"Successfully created client for {client_name} after bearer token refresh")
-                                                continue
-                                    
+                                                                        
                                 except Exception as retry_error:
                                     logger.error(f"Error during bearer token refresh and retry: {retry_error}")
                             
@@ -798,18 +726,6 @@ def init_mcp_clients(mcp_servers: list):
             except Exception as e:
                 logger.error(f"Failed to add streamable MCP client for {name}: {e}")
                 
-                # Try to refresh bearer token and retry for 403 errors
-                if "403" in str(e) or "Forbidden" in str(e) or "MCPClientInitializationError" in str(e) or "client initialization failed" in str(e):
-                    logger.info("Attempting to refresh bearer token and retry...")
-                    if mcp_manager._refresh_bearer_token_and_update_client(name):
-                        # Retry with new bearer token
-                        logger.info("Retrying MCP client creation with fresh bearer token...")
-                        mcp_manager.add_streamable_client(name, url, mcp_manager.client_configs[name]["headers"])
-                        logger.info(f"Successfully added streamable MCP client for {name} after bearer token refresh")
-                    else:
-                        continue
-                else:
-                    continue            
         else:
             name = tool  # Use tool name as client name
             command = server_config["command"]
@@ -866,27 +782,6 @@ def update_tools(strands_tools: list, mcp_servers: list):
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             
-            # Try to refresh bearer token and retry for 403 errors
-            if "403" in str(e) or "Forbidden" in str(e) or "MCPClientInitializationError" in str(e) or "client initialization failed" in str(e):
-                logger.info(f"Attempting to refresh bearer token and retry for {mcp_tool}...")
-                if mcp_manager._refresh_bearer_token_and_update_client(mcp_tool):
-                    # Retry getting tools
-                    logger.info("Retrying tool retrieval with fresh bearer token...")
-                    with mcp_manager.get_active_clients([mcp_tool]) as _:
-                        client = mcp_manager.get_client(mcp_tool)
-                        if client:
-                            mcp_servers_list = client.list_tools_sync()
-                            if mcp_servers_list:
-                                tools.extend(mcp_servers_list)
-                                mcp_servers_loaded += 1
-                                logger.info(f"Successfully added {len(mcp_servers_list)} tools from {mcp_tool} after bearer token refresh")
-                            else:
-                                logger.warning(f"No tools returned from {mcp_tool} after bearer token refresh")
-                        else:
-                            logger.error(f"Failed to get client for {mcp_tool} after bearer token refresh")
-            
-            continue
-
     return tools
 
 def create_agent(system_prompt, tools):
