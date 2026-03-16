@@ -873,13 +873,13 @@ Workshop의 경우에 아래 형태로 된 Credential을 복사하여 EC2 터미
 아래와 같이 git source를 가져옵니다.
 
 ```python
-git clone https://github.com/kyopark2014/es-us-project
+git clone https://github.com/kyopark2014/strands-agent
 ```
 
 아래와 같이 installer.py를 이용해 설치를 시작합니다.
 
 ```python
-cd es-us-project && python3 installer.py
+cd strands-agent && python3 installer.py
 ```
 
 API 구현에 필요한 credential은 secret으로 관리합니다. 따라서 설치시 필요한 credential 입력이 필요한데 아래와 같은 방식을 활용하여 미리 credential을 준비합니다. 
@@ -915,7 +915,7 @@ AWS console의 EC2로 접속하여 [Launch an instance](https://us-west-2.consol
 이후 아래와 같이 업데이트한 후에 다시 브라우저에서 확인합니다.
 
 ```text
-cd ~/es-us-project/ && sudo ./update.sh
+cd ~/strands-agent/ && sudo ./update.sh
 ```
 
 ### 실행 로그 확인
