@@ -11,3 +11,4 @@ config.json
 *.pptx
 *.xlsx
 *.docx
+*.py
