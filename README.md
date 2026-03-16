@@ -991,9 +991,9 @@ if plugin.is_command(query, plugin_name):
     command = query.split(" ")[0].lstrip("/")
 ```
 
-Command를 위한 promt는 아래와 같습니다. Command의 경우에 SKILL_SYSTEM_PROMPT, 경로, skill 리스트, COMMAND_USAGE_GUIDE를 포함합니다.
+Command를 위한 prompt는 아래와 같습니다. Command의 경우에 SKILL_SYSTEM_PROMPT, 경로, skill 리스트, COMMAND_USAGE_GUIDE를 포함합니다.
 
-```pyhon
+```python
 COMMAND_USAGE_GUIDE = (
     "\n## Command 사용 가이드\n"
     "위의 <command_instructions>에 따라 사용자 요청을 처리하세요.\n"
