@@ -8,3 +8,6 @@ config.json
 *.jpg
 *.png
 *.css
+*.pptx
+*.xlsx
+*.docx

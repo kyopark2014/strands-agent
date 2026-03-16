@@ -11,7 +11,6 @@ import logging
 import argparse
 import base64
 import ipaddress
-from datetime import datetime
 from typing import Dict, List, Optional
 from botocore.exceptions import ClientError
 import urllib.request
@@ -53,8 +52,8 @@ def setup_logging(log_level=logging.INFO):
         format=log_format,
         datefmt=date_format,
         handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler(f"installer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+            logging.StreamHandler()
+            #logging.FileHandler(f"installer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
         ]
     )
     
@@ -661,44 +660,12 @@ def create_secrets() -> Dict[str, str]:
                 "weather_api_key": ""
             }
         },
-        "langsmith": {
-            "name": f"langsmithapikey-{project_name}",
-            "description": "secret for lamgsmith api key",
-            "secret_value": {
-                "langchain_project": project_name,
-                "langsmith_api_key": ""
-            }
-        },
         "tavily": {
             "name": f"tavilyapikey-{project_name}",
             "description": "secret for tavily api key",
             "secret_value": {
                 "project_name": project_name,
                 "tavily_api_key": ""
-            }
-        },
-        "perplexity": {
-            "name": f"perplexityapikey-{project_name}",
-            "description": "secret for perflexity api key",
-            "secret_value": {
-                "project_name": project_name,
-                "perplexity_api_key": ""
-            }
-        },
-        "firecrawl": {
-            "name": f"firecrawlapikey-{project_name}",
-            "description": "secret for firecrawl api key",
-            "secret_value": {
-                "project_name": project_name,
-                "firecrawl_api_key": ""
-            }
-        },
-        "nova_act": {
-            "name": f"novaactapikey-{project_name}",
-            "description": "secret for nova act api key",
-            "secret_value": {
-                "project_name": project_name,
-                "nova_act_api_key": ""
             }
         },
         "notion": {
@@ -735,26 +702,10 @@ def create_secrets() -> Dict[str, str]:
                     logger.info(f"Enter credential of {secret_config['name']} (Weather API Key - OpenWeatherMap):")
                     api_key = input(f"Creating {secret_config['name']} - Weather API Key (OpenWeatherMap): ").strip()
                     secret_config["secret_value"]["weather_api_key"] = api_key
-                elif key == "langsmith":
-                    logger.info(f"Enter credential of {secret_config['name']} (LangSmith API Key):")
-                    api_key = input(f"Creating {secret_config['name']} - LangSmith API Key: ").strip()
-                    secret_config["secret_value"]["langsmith_api_key"] = api_key
                 elif key == "tavily":
                     logger.info(f"Enter credential of {secret_config['name']} (Tavily API Key):")
                     api_key = input(f"Creating {secret_config['name']} - Tavily API Key: ").strip()
                     secret_config["secret_value"]["tavily_api_key"] = api_key
-                elif key == "perplexity":
-                    logger.info(f"Enter credential of {secret_config['name']} (Perplexity API Key):")
-                    api_key = input(f"Creating {secret_config['name']} - Perplexity API Key: ").strip()
-                    secret_config["secret_value"]["perplexity_api_key"] = api_key
-                elif key == "firecrawl":
-                    logger.info(f"Enter credential of {secret_config['name']} (Firecrawl API Key):")
-                    api_key = input(f"Creating {secret_config['name']} - Firecrawl API Key: ").strip()
-                    secret_config["secret_value"]["firecrawl_api_key"] = api_key
-                elif key == "nova_act":
-                    logger.info(f"Enter credential of {secret_config['name']} (Nova Act API Key):")
-                    api_key = input(f"Creating {secret_config['name']} - Nova Act API Key: ").strip()
-                    secret_config["secret_value"]["nova_act_api_key"] = api_key
                 elif key == "notion":
                     logger.info(f"Enter credential of {secret_config['name']} (Notion API Key):")
                     api_key = input(f"Creating {secret_config['name']} - Notion API Key: ").strip()
@@ -3123,7 +3074,7 @@ def create_cloudfront_distribution(alb_info: Dict[str, str], s3_bucket_name: str
             "Compress": True
         },
         "CacheBehaviors": {
-            "Quantity": 2,
+            "Quantity": 3,
             "Items": [
                 {
                     "PathPattern": "/images/*",
@@ -3142,6 +3093,21 @@ def create_cloudfront_distribution(alb_info: Dict[str, str], s3_bucket_name: str
                 },
                 {
                     "PathPattern": "/docs/*",
+                    "TargetOriginId": f"s3-{project_name}",
+                    "ViewerProtocolPolicy": "redirect-to-https",
+                    "AllowedMethods": {
+                        "Quantity": 2,
+                        "Items": ["GET", "HEAD"],
+                        "CachedMethods": {
+                            "Quantity": 2,
+                            "Items": ["GET", "HEAD"]
+                        }
+                    },
+                    "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+                    "Compress": True
+                },
+                {
+                    "PathPattern": "/artifacts/*",
                     "TargetOriginId": f"s3-{project_name}",
                     "ViewerProtocolPolicy": "redirect-to-https",
                     "AllowedMethods": {
@@ -3206,7 +3172,7 @@ def create_cloudfront_distribution(alb_info: Dict[str, str], s3_bucket_name: str
         logger.info(f"✓ CloudFront distribution created (ALB + S3): {distribution_domain}")
         logger.info(f"  Distribution ID: {distribution_id}")
         logger.info(f"  Default origin: ALB {alb_info['dns']}")
-        logger.info(f"  /images/* and /docs/* origins: S3 bucket {s3_bucket_name}")
+        logger.info(f"  /images/*, /docs/*, /artifacts/* origins: S3 bucket {s3_bucket_name}")
         logger.warning("  Note: CloudFront distribution may take 15-20 minutes to deploy")
         
     except ClientError as e:

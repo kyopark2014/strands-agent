@@ -318,7 +318,8 @@ def get_chat(extended_thinking):
             config=Config(
                 retries = {
                     'max_attempts': 30
-                }
+                },
+                read_timeout=300
             )
         )
     else:

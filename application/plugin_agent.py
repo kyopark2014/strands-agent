@@ -76,34 +76,34 @@ async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: li
 
             elif "current_tool_use" in event:
                 current_tool_use = event["current_tool_use"]
-                logger.info(f"current_tool_use: {current_tool_use}")
+                # logger.info(f"current_tool_use: {current_tool_use}")
                 name = current_tool_use.get("name", "")
                 input_val = current_tool_use.get("input", "")
                 toolUseId = current_tool_use.get("toolUseId", "")
 
                 text = f"name: {name}, input: {input_val}"
-                logger.info(f"[current_tool_use] {text}")
+                # logger.info(f"[current_tool_use] {text}")
 
                 if toolUseId not in chat.tool_info_list:
                     index += 1
                     current = ""
-                    logger.info(f"new tool info: {toolUseId} -> {index}")
+                    # logger.info(f"new tool info: {toolUseId} -> {index}")
                     chat.tool_info_list[toolUseId] = index
                     chat.tool_name_list[toolUseId] = name
                     chat.index = index
                     chat.add_notification(containers, f"Tool: {name}, Input: {input_val}")
                     index = chat.index
                 else:
-                    logger.info(f"overwrite tool info: {toolUseId} -> {chat.tool_info_list[toolUseId]}")
+                    # logger.info(f"overwrite tool info: {toolUseId} -> {chat.tool_info_list[toolUseId]}")
                     containers['notification'][chat.tool_info_list[toolUseId]].info(f"Tool: {name}, Input: {input_val}")
 
             elif "message" in event:
                 message = event["message"]
-                logger.info(f"[message] {message}")
+                # logger.info(f"[message] {message}")
 
                 if "content" in message:
                     content = message["content"]
-                    logger.info(f"tool content: {content}")
+                    # logger.info(f"tool content: {content}")
                     if "toolResult" in content[0]:
                         toolResult = content[0]["toolResult"]
                         toolUseId = toolResult["toolUseId"]
