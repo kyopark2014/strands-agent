@@ -20,6 +20,7 @@ import strands_graph_with_loop
 import plugin
 import utils
 import skill
+import plugin_agent
 
 logging.basicConfig(
     level=logging.INFO,  
@@ -478,7 +479,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                     "key": st.empty()
                 }
 
-                response, image_urls = asyncio.run(chat.run_strands_agent(
+                response, image_urls = asyncio.run(strands_agent.run_strands_agent(
                     query=prompt, 
                     strands_tools=selected_strands_tools, 
                     mcp_servers=selected_mcp_servers, 
@@ -504,10 +505,9 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                     "notification": [st.empty() for _ in range(1000)],
                     "key": st.empty()
                 }
-                if multiRegion == 'Enable':
-                    response, urls = asyncio.run(strands_swarm.run_swarm_parallel(prompt, selected_strands_tools, selected_mcp_servers, containers))
-                else:
-                    response, urls = asyncio.run(strands_swarm.run_swarm(prompt, selected_strands_tools, selected_mcp_servers, containers))
+                # if multiRegion == 'Enable':
+                #     response, urls = asyncio.run(strands_swarm.run_swarm_parallel(prompt, selected_strands_tools, selected_mcp_servers, containers))
+                response, urls = asyncio.run(strands_swarm.run_swarm(prompt, selected_strands_tools, selected_mcp_servers, containers))
 
                 if urls:
                     with st.expander(f"최종 결과"):
@@ -584,6 +584,18 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                     "key": st.empty()
                 }
             response = asyncio.run(strands_graph_with_loop.run_graph_with_loop(prompt, containers))
+
+        else:
+            for plugin in plugin_list:
+                if mode == plugin["name"]:
+                    with st.status("thinking...", expanded=True, state="running") as status:
+                        containers = {
+                            "tools": st.empty(),
+                            "status": st.empty(),
+                            "notification": [st.empty() for _ in range(1000)],
+                            "key": st.empty()
+                        }
+                    response, image_urls = asyncio.run(plugin_agent.run_plugin_agent(prompt, selected_strands_tools, selected_mcp_servers, plugin["name"], containers))
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)

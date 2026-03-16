@@ -3,3 +3,8 @@ __pycache__
 # configuration
 config.json
 *.pdf
+*.js
+*.html
+*.jpg
+*.png
+*.css
