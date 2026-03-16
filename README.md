@@ -845,6 +845,189 @@ if isinstance(response, dict):
 <img width="721" height="770" alt="image" src="https://github.com/user-attachments/assets/193105da-09df-4e28-bc64-b72a79936550" />
 
 
+### MCP
+
+Plugin의 Connector는 MCP를 이용해 구현합니다. 이때 필요한 MCP 설정은 아래를 참조합니다. 
+
+- [Slack](https://github.com/kyopark2014/mcp/blob/main/mcp-slack.md): Slack 내용을 조회하고 메시지를 보낼 수 있습니다. SLACK_TEAM_ID, SLACK_BOT_TOKEN으로 설정합니다.
+
+- [Tavily](https://github.com/kyopark2014/mcp/blob/main/mcp-tavily.md): Tavily를 이용해 인터넷을 검색합니다. [installer.py](./installer.py)에서 secret으로 설정후에 [utils.py](./application/utils.py)에서 TAVILY_API_KEY로 등록하여 활용합니다.
+
+- [RAG](https://github.com/kyopark2014/mcp/blob/main/mcp-rag.md): Knowledge Base를 이용해 RAG를 활용합니다. IAM 인증을 이용하므로 별도로 credential 설정하지 않습니다.
+
+- [web_fetch](https://github.com/kyopark2014/mcp/blob/main/mcp-web-fetch.md): playwright기반으로 url의 문서를 markdown으로 불러올 수 있습니다. 별도 인증이 필요하지 않습니다.
+
+- [Google 메일/캘린더](https://github.com/kyopark2014/mcp/blob/main/mcp-gog.md): 구글 메일을 조회하거나 보낼 수 있습니다. Gog CLI를 설치하여 google 인증을 통해 활용합니다.
+
+- [Notion](https://github.com/kyopark2014/mcp/blob/main/mcp-notion.md): Notion을 읽거나 쓸 수 있습니다. [installer.py](./installer.py)에서 secret으로 설정후에 [utils.py](./application/utils.py)에서 NOTION_TOKEN을 등록하여 활용합니다.
+
+- [text_extraction](https://github.com/kyopark2014/mcp/blob/main/mcp-text-extraction.md): 이미지의 텍스트를 추출합니다. 별도 인증이 필요하지 않습니다.
+
+
+### Plugin
+
+[Plugin 폴더](./application/plugins)에 plugin을 저장하면 [plugin.py](./application/plugin.py)와 같이 pluin 리스트를 가져와서 왼쪽 메뉴에 표시합니다.
+
+```python
+def available_plugins_list():
+    plugin_dir = PLUGINS_DIR
+    if not os.path.isdir(plugin_dir):
+        return []
+    
+    plugin_list = []
+    for plugin in os.listdir(plugin_dir):
+        plugin_list.append({"name": plugin})
+        
+    return plugin_list
+```
+
+사용자가 plugin을 선택하면 아래와 같이 [plugin_agent.py](./application/plugin_agent.py)의 run_plugin_agent을 실행합니다. 
+  
+```python
+for plugin in plugin_list:
+    if mode == plugin["name"]:
+        with st.status("thinking...", expanded=True, state="running") as status:
+            containers = {
+                "tools": st.empty(),
+                "status": st.empty(),
+                "notification": [st.empty() for _ in range(1000)],
+                "key": st.empty()
+            }
+        response, image_urls = asyncio.run(plugin_agent.run_plugin_agent(prompt, selected_strands_tools, selected_mcp_servers, plugin["name"], containers))
+```
+
+이때, [strands_agent.py](./application/strands_agent.py)와 같이 mcp_server를 초기화하고 strands와 MCP로 제공되는 tool을 설정합니다. 이후에 아래의 get_builtin_tools으로 SKILL 동작에 필요한 tool을 등록합니다. 이때, Strands나 MCP tool들이 SKILL에 필요한 tool들과 같은 이름이 있는지 확인합니다.
+
+```python
+init_mcp_clients(mcp_servers)
+tools = update_tools(strands_tools, mcp_servers)
+
+builtin_tools = get_builtin_tools()
+
+tool_names = {tool.tool_name for tool in tools}
+for bt in builtin_tools:
+    if bt.tool_name not in tool_names:
+        tools.append(bt)
+```
+
+SKILL을 위해 파일을 읽고 쓰는 read_file, write_file 뿐 아니라 script등의 code를 실행하는 execute_code가 필요합니다. get_skill_instructions은 skil의 description을 가져올 때 필요한 tool입니다.
+
+```python
+def get_builtin_tools():
+    """Return the list of built-in tools for the skill-aware agent."""
+    return [execute_code, write_file, read_file, upload_file_to_s3, get_skill_instructions]
+```
+
+Agent를 생성할 때에 아래와 같이 plugin 이름과 command에 대한 정보가 필요합니다. 이때 build_system_prompt으로 SKILL/Command를 처리할 수 있는 prompt를 생성합니다.
+
+```python
+agent = create_agent(system_prompt, tools, plugin_name, command)
+
+def create_agent(system_prompt: Optional[str], tools: list, plugin_name: Optional[str], command: Optional[str] = None):
+    if system_prompt==None:
+        system_prompt = (
+            "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
+            "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
+            "모르는 질문을 받으면 솔직히 모른다고 말합니다."
+        )
+
+    if not system_prompt or not system_prompt.strip():
+        system_prompt = "You are a helpful AI assistant."
+    
+    # add skills metadata to system prompt
+    system_prompt = build_system_prompt(system_prompt, plugin_name, command)
+
+    model = get_model()    
+    agent = Agent(
+        model=model,
+        system_prompt=system_prompt,
+        tools=tools,
+        conversation_manager=conversation_manager,
+    )
+
+    return agent
+```
+
+SKILL은 아래와 같이 SKILL_SYSTEM_PROMPT와 실행에 필요한 경로를 가지고 있습니다.
+
+```python
+SKILL_USAGE_GUIDE = (
+    "\n## Skill 사용 가이드\n"
+    "위의 <available_skills>에 나열된 skill이 사용자의 요청과 관련될 때:\n"
+    "1. 먼저 get_skill_instructions 도구로 해당 skill의 상세 지침을 로드하세요.\n"
+    "2. 지침에 포함된 코드 패턴을 execute_code 도구로 실행하세요.\n"
+    "3. skill 지침이 없는 일반 질문은 직접 답변하세요.\n"
+)
+
+def build_skill_prompt(plugin_name: str) -> str:
+    """Build skill-related prompt: path info, available skills XML, and usage guide."""
+    skill_info = selected_skill_info(plugin_name)
+    logger.info(f"plugin_name: {plugin_name}, skill_info: {skill_info}")
+
+    if plugin_name != "base":
+        default_skill_info = selected_skill_info("base")
+        if default_skill_info:
+            skill_info.extend(default_skill_info)
+            logger.info(f"default_skill_info: {default_skill_info}")
+
+    path_info = (
+        f"## Paths (use absolute paths for write_file, read_file)\n"
+        f"- WORKING_DIR: {WORKING_DIR}\n"
+        f"- ARTIFACTS_DIR: {ARTIFACTS_DIR}\n"
+        f"Example: write_file(filepath='{os.path.join(ARTIFACTS_DIR, 'report.drawio')}', content='...')\n\n"
+    )
+
+    skills_xml = get_skills_xml(skill_info)
+    if skills_xml:
+        return f"{SKILL_SYSTEM_PROMPT}\n{path_info}\n{skills_xml}\n{SKILL_USAGE_GUIDE}"
+    return f"{SKILL_SYSTEM_PROMPT}\n{path_info}"
+```
+
+Command는 사용자의 입력이 슬랙시(/)로 시작할 때에 첫번째 단어를 추출해 활용합니다. 이때, is_command로 해당 plugin에 command 이름을 가지는 markdown 파일이 있는지 확인합니다.
+
+```python
+command = None
+if plugin.is_command(query, plugin_name):
+    command = query.split(" ")[0].lstrip("/")
+```
+
+Command를 위한 promt는 아래와 같습니다. Command의 경우에 SKILL_SYSTEM_PROMPT, 경로, skill 리스트, COMMAND_USAGE_GUIDE를 포함합니다.
+
+```pyhon
+COMMAND_USAGE_GUIDE = (
+    "\n## Command 사용 가이드\n"
+    "위의 <command_instructions>에 따라 사용자 요청을 처리하세요.\n"
+    "필요한 경우 get_skill_instructions로 skill 지침을 추가 로드하거나, execute_code, write_file 등 도구를 사용하세요.\n"
+)
+
+def build_command_prompt(plugin_name: str, command: str) -> str:
+    """Build prompt for command mode: path info, command instructions, and available skills."""
+    skill_info = selected_skill_info(plugin_name)
+    logger.info(f"plugin_name: {plugin_name}, command: {command}, skill_info: {skill_info}")
+
+    if plugin_name != "base":
+        default_skill_info = selected_skill_info("base")
+        if default_skill_info:
+            skill_info.extend(default_skill_info)
+            logger.info(f"default_skill_info: {default_skill_info}")
+
+    path_info = (
+        f"## Paths (use absolute paths for write_file, read_file)\n"
+        f"- WORKING_DIR: {WORKING_DIR}\n"
+        f"- ARTIFACTS_DIR: {ARTIFACTS_DIR}\n"
+        f"Example: write_file(filepath='{os.path.join(ARTIFACTS_DIR, 'report.drawio')}', content='...')\n\n"
+    )
+
+    command_instructions = get_command_instructions(plugin_name, command)
+    command_section = f"## Command Instructions\n<command_instructions>\n{command_instructions}\n</command_instructions>\n\n"
+
+    skills_xml = get_skills_xml(skill_info)
+    skills_section = f"{skills_xml}\n" if skills_xml else ""
+
+    return f"{SKILL_SYSTEM_PROMPT}\n{path_info}\n{command_section}\n{skills_section}\n{COMMAND_USAGE_GUIDE}"
+```
+
+
 
 ## 배포하기
 
