@@ -89,14 +89,20 @@ with st.sidebar:
     )   
     st.info(mode_descriptions[mode][0])    
 
-    strands_tools = ["calculator", "current_time", "speak"]
+    strands_tools = ["calculator", "current_time"]
     mcp_tools = [
-        "basic", "short-term memory", "long-term memory", "tavily-search", "aws-api", "aws-knowledge", "aws document", "aws cost", "aws cli", 
-        "use_aws", "aws cloudwatch", "aws storage", "image generation", "aws diagram",
-        "code interpreter", "knowledge base", "perplexity", "ArXiv", "wikipedia", "trade_info",
-        "filesystem", "terminal", "text editor", "context7", "puppeteer", 
-        "agentcore-browser", "playwright", "firecrawl", "obsidian", "airbnb", 
-        "pubmed", "chembl", "clinicaltrial", "arxiv-manual", "notion", "사용자 설정"
+        "basic", 
+        "tavily", 
+        "use_aws", 
+        "code interpreter", 
+        "knowledge base", 
+        "trade_info",
+        "drawio",
+        "web_fetch",
+        "text_extraction",
+        "slack",
+        "gog",
+        "사용자 설정"
     ]
 
     mcp_selections = {}
@@ -187,7 +193,7 @@ with st.sidebar:
     modelName = st.selectbox(
         '🖊️ 사용 모델을 선택하세요',
         (
-            "Claude 4.6 Claude",
+            "Claude 4.6 Sonnet",
             "Claude 4.6 Opus",
             "Claude 4.5 Haiku",
             "Claude 4.5 Sonnet",
