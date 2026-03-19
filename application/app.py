@@ -130,9 +130,13 @@ with st.sidebar:
         "사용자 설정"
     ]
 
-    mcp_selections = {}    
+    mcp_selections = {}
     default_mcp_selections = ["korea_weather", "web_fetch", "tavily"]
-    
+
+    # Default: prevent strands_selections undefined when not in Agent mode
+    default_strands_tool_selections = config.get("default_strands_tool_selections") or default_strands_tool_selections
+    strands_selections = {tool: tool in default_strands_tool_selections for tool in strands_tools}
+
     if mode=="Agent" or mode=="Agent (Chat)":
         # Skill Config JSON input
         st.subheader("⚙️ Skill Config")
@@ -395,12 +399,19 @@ def display_chat_messages():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-            if "images" in message:                
+            if "images" in message:
                 for url in message["images"]:
                     logger.info(f"url: {url}")
-
-                    file_name = url[url.rfind('/')+1:]
-                    st.image(url, caption=file_name, use_container_width=True)            
+                    # Only process image URLs or image files; skip non-images like .md, .txt
+                    is_http = url.startswith("http://") or url.startswith("https://")
+                    image_ext = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".ico")
+                    if not (is_http or any(url.lower().endswith(ext) for ext in image_ext)):
+                        continue
+                    file_name = url[url.rfind("/") + 1:] if "/" in url else url
+                    try:
+                        st.image(url, caption=file_name, use_container_width=True)
+                    except Exception as e:
+                        logger.warning(f"st.image failed for {url}: {e}")            
 
 display_chat_messages()
 
@@ -621,8 +632,17 @@ if prompt := st.chat_input("메시지를 입력하세요."):
         
         for url in image_urls:
             logger.info(f"url: {url}")
-            file_name = url[url.rfind('/')+1:]
-            st.image(url, caption=file_name, use_container_width=True)      
+            # Only process image URLs or image files; skip non-images like .md, .txt
+            is_http = url.startswith("http://") or url.startswith("https://")
+            image_ext = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp", ".ico")
+            is_image = is_http or any(url.lower().endswith(ext) for ext in image_ext)
+            if not is_image:
+                continue
+            file_name = url[url.rfind("/") + 1:] if "/" in url else url
+            try:
+                st.image(url, caption=file_name, use_container_width=True)
+            except Exception as e:
+                logger.warning(f"st.image failed for {url}: {e}")      
 
         st.session_state.messages.append({
             "role": "assistant", 
