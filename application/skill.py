@@ -14,7 +14,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from pathlib import Path
 from dataclasses import dataclass, field
-from langchain_core.tools import tool
+from strands import tool
 from typing import Literal, Optional
 
 logging.basicConfig(
@@ -265,6 +265,7 @@ COMMAND_USAGE_GUIDE = (
     "필요한 경우 get_skill_instructions로 skill 지침을 추가 로드하거나, execute_code, write_file 등 도구를 사용하세요.\n"
 )
 
+
 def build_command_prompt(plugin_name: str, command: str) -> str:
     """Build prompt for command mode: path info, command instructions, and available skills."""
     skill_info = selected_skill_info(plugin_name)
@@ -380,7 +381,6 @@ def execute_code(code: str) -> str:
         tb = traceback.format_exc()
         logger.error(f"Code execution error: {tb}")
         return f"Error executing code:\n{tb}"
-
 
 @tool
 def write_file(filepath: str, content: str = "") -> str:
@@ -599,7 +599,7 @@ def get_skill_instructions(plugin_name: str, skill_name: str) -> str:
 
     Returns:
         The full skill instructions, or an error message if not found.
-    """    
+    """       
     logger.info(f"###### get_skill_instructions: {skill_name} ######")
     skill_manager = skill_managers.get(plugin_name)
     if skill_manager is None:

@@ -194,217 +194,6 @@ def build_system_prompt(custom_prompt: Optional[str] = None, plugin_name: Option
 
     return base
 
-# ═══════════════════════════════════════════════════════════════════
-#  2. Built-in Tools – code execution, file I/O, S3 upload
-# ═══════════════════════════════════════════════════════════════════
-@tool
-def execute_code(code: str) -> str:
-    """Execute Python code and return stdout/stderr output.
-
-    Use this tool to run Python code for tasks such as generating PDFs,
-    processing data, or performing computations. The execution environment
-    has access to common libraries: reportlab, pypdf, pdfplumber, pandas,
-    json, csv, os, etc.
-
-    Generated files should be saved to the 'artifacts/' directory.
-
-    Args:
-        code: Python code to execute.
-
-    Returns:
-        Captured stdout output, or error traceback if execution failed.
-    """
-    logger.info(f"###### execute_code ######")
-    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
-
-    old_cwd = os.getcwd()
-    stdout_capture = io.StringIO()
-    stderr_capture = io.StringIO()
-
-    try:
-        os.chdir(WORKING_DIR)
-
-        skill_paths = []
-        if os.path.isdir(SKILLS_DIR):
-            for entry in os.listdir(SKILLS_DIR):
-                sp = os.path.join(SKILLS_DIR, entry)
-                if os.path.isdir(sp) and sp not in sys.path:
-                    sys.path.insert(0, sp)
-                    skill_paths.append(sp)
-
-        old_stdout, old_stderr = sys.stdout, sys.stderr
-        sys.stdout, sys.stderr = stdout_capture, stderr_capture
-
-        import subprocess, json, pathlib, shutil, tempfile, glob, datetime, math, re as _re
-        exec_globals = {
-            "__builtins__": __builtins__,
-            "subprocess": subprocess,
-            "json": json,
-            "os": os,
-            "sys": sys,
-            "io": io,
-            "pathlib": pathlib,
-            "shutil": shutil,
-            "tempfile": tempfile,
-            "glob": glob,
-            "datetime": datetime,
-            "math": math,
-            "re": _re,
-        }
-        exec(code, exec_globals)
-
-        sys.stdout, sys.stderr = old_stdout, old_stderr
-        os.chdir(old_cwd)
-        for sp in skill_paths:
-            if sp in sys.path:
-                sys.path.remove(sp)
-
-        output = stdout_capture.getvalue()
-        errors = stderr_capture.getvalue()
-
-        result = ""
-        if output:
-            result += output
-        if errors:
-            result += f"\n[stderr]\n{errors}"
-        if not result.strip():
-            result = "Code executed successfully (no output)."
-
-        return result
-
-    except Exception as e:
-        sys.stdout, sys.stderr = old_stdout, old_stderr
-        os.chdir(old_cwd)
-        for sp in skill_paths:
-            if sp in sys.path:
-                sys.path.remove(sp)
-        tb = traceback.format_exc()
-        logger.error(f"Code execution error: {tb}")
-        return f"Error executing code:\n{tb}"
-
-@tool
-def write_file(filepath: str, content: str) -> str:
-    """Write text content to a file.
-
-    Args:
-        filepath: Path relative to the working directory (e.g. 'artifacts/report.md').
-        content: The text content to write.
-
-    Returns:
-        A success or failure message.
-    """
-    logger.info(f"###### write_file: {filepath} ######")
-    try:
-        full_path = os.path.join(WORKING_DIR, filepath)
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        with open(full_path, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        result_msg = f"파일이 저장되었습니다: {filepath}"
-
-        s3_bucket = config.get("s3_bucket")
-        if s3_bucket and sharing_url:
-            try:
-                import boto3
-                from urllib import parse as url_parse
-                s3 = boto3.client("s3", region_name=config.get("region", "us-west-2"))
-                content_type = utils.get_contents_type(filepath)
-                s3.put_object(Bucket=s3_bucket, Key=filepath, Body=content, ContentType=content_type)
-                url = f"{sharing_url}/{url_parse.quote(filepath)}"
-                result_msg += f"\nURL: {url}"
-            except Exception as ue:
-                logger.warning(f"S3 upload failed: {ue}")
-
-        return result_msg
-    except Exception as e:
-        return f"파일 저장 실패: {str(e)}"
-
-
-@tool
-def read_file(filepath: str) -> str:
-    """Read the contents of a local file.
-
-    Args:
-        filepath: Path relative to the working directory.
-
-    Returns:
-        The file contents as text, or an error message.
-    """
-    logger.info(f"###### read_file: {filepath} ######")
-    try:
-        full_path = os.path.join(WORKING_DIR, filepath)
-        with open(full_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except Exception as e:
-        return f"파일 읽기 실패: {str(e)}"
-
-
-@tool
-def upload_file_to_s3(filepath: str) -> str:
-    """Upload a local file to S3 and return the download URL.
-
-    Args:
-        filepath: Path relative to the working directory (e.g. 'artifacts/report.pdf').
-
-    Returns:
-        The download URL, or an error message.
-    """
-    logger.info(f"###### upload_file_to_s3: {filepath} ######")
-    try:
-        import boto3
-        from urllib import parse as url_parse
-
-        s3_bucket = config.get("s3_bucket")
-        if not s3_bucket:
-            return "S3 버킷이 설정되어 있지 않습니다."
-
-        full_path = os.path.join(WORKING_DIR, filepath)
-        if not os.path.exists(full_path):
-            return f"파일을 찾을 수 없습니다: {filepath}"
-
-        content_type = utils.get_contents_type(filepath)
-        s3 = boto3.client("s3", region_name=config.get("region", "us-west-2"))
-
-        with open(full_path, "rb") as f:
-            s3.put_object(Bucket=s3_bucket, Key=filepath, Body=f.read(), ContentType=content_type)
-
-        if sharing_url:
-            url = f"{sharing_url}/{url_parse.quote(filepath)}"
-            return f"업로드 완료: {url}"
-        return f"업로드 완료: s3://{s3_bucket}/{filepath}"
-
-    except Exception as e:
-        return f"업로드 실패: {str(e)}"
-
-
-@tool
-def get_skill_instructions(skill_name: str) -> str:
-    """시스템 프롬프트의 <available_skills>에 나열된 skill의 상세 실행 지침을 로드합니다.
-
-    사용자가 검색, 날씨, PDF, 도서 등 skill로 처리할 수 있는 작업을 요청하면
-    반드시 이 도구를 먼저 호출하여 해당 skill의 실행 방법을 확인하세요.
-    예: 인터넷 검색 → get_skill_instructions("tavily-search")
-        날씨 조회 → get_skill_instructions("search-weather")
-
-    Args:
-        skill_name: skill 이름 (e.g. 'tavily-search', 'pdf', 'search-weather', 'book-search').
-
-    Returns:
-        해당 skill의 상세 실행 지침, 또는 skill을 찾을 수 없을 때 오류 메시지.
-    """
-    logger.info(f"###### get_skill_instructions: {skill_name} ######")
-    instructions = skill_manager.get_skill_instructions(skill_name)
-    if instructions:
-        return instructions
-    available = ", ".join(skill_manager.registry.keys())
-    return f"Skill '{skill_name}'을 찾을 수 없습니다. 사용 가능한 skill: {available}"
-
-
-def get_builtin_tools():
-    """Return the list of built-in tools for the skill-aware agent."""
-    return [execute_code, write_file, read_file, upload_file_to_s3, get_skill_instructions]
-
-
 #########################################################
 # Strands Agent 
 #########################################################
@@ -728,7 +517,14 @@ def init_mcp_clients(mcp_servers: list):
             command = server_config["command"]
             args = server_config["args"]
             env = server_config.get("env", {})  # Use empty dict if env is not present            
-            logger.info(f"name: {name}, command: {command}, args: {args}, env: {env}")        
+            logger.info(f"name: {name}, command: {command}, args: {args}, env: {env}")
+
+            # Skip if command is a file path and the executable doesn't exist
+            cmd_path = os.path.expanduser(command) if isinstance(command, str) else str(command)
+            if "/" in cmd_path or (isinstance(command, str) and command.startswith("~")):
+                if not os.path.isfile(cmd_path):
+                    logger.warning(f"Skipping {name}: executable not found at {cmd_path}")
+                    continue
 
             try:
                 mcp_manager.add_stdio_client(name, command, args, env)
@@ -841,15 +637,19 @@ async def initiate_agent(system_prompt: Optional[str], strands_tools: list[str],
         logger.info(f"tools: {tools}")
 
         if chat.skill_mode == 'Enable':
-            builtin_tools = get_builtin_tools()
+            builtin_tools = skill.get_builtin_tools()
             logger.info(f"builtin_tools: {builtin_tools}")
-            
-            tool_names = {tool.tool_name for tool in tools}
+
+            def tool_name(t):
+                return getattr(t, 'tool_name', None) or getattr(t, 'name', None)
+
+            tool_names = {tool_name(t) for t in tools if tool_name(t)}
             for bt in builtin_tools:
-                if bt.tool_name not in tool_names:
+                bt_name = tool_name(bt)
+                if bt_name and bt_name not in tool_names:
                     tools.append(bt)
-                else:
-                    logger.info(f"builtin_tool {bt.tool_name} already in tools")
+                elif bt_name:
+                    logger.info(f"builtin_tool {bt_name} already in tools")
 
         agent = create_agent(system_prompt, tools, plugin_name, command)
         tool_list = get_tool_list(tools)

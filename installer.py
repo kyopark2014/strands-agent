@@ -652,14 +652,6 @@ def create_secrets() -> Dict[str, str]:
     logger.info("Please enter API keys when prompted (press Enter to skip and leave empty):")
     
     secrets = {
-        "weather": {
-            "name": f"openweathermap-{project_name}",
-            "description": "secret for weather api key",
-            "secret_value": {
-                "project_name": project_name,
-                "weather_api_key": ""
-            }
-        },
         "tavily": {
             "name": f"tavilyapikey-{project_name}",
             "description": "secret for tavily api key",
@@ -698,11 +690,7 @@ def create_secrets() -> Dict[str, str]:
         except ClientError as e:
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
                 # Secret doesn't exist, prompt for API key and create it
-                if key == "weather":
-                    logger.info(f"Enter credential of {secret_config['name']} (Weather API Key - OpenWeatherMap):")
-                    api_key = input(f"Creating {secret_config['name']} - Weather API Key (OpenWeatherMap): ").strip()
-                    secret_config["secret_value"]["weather_api_key"] = api_key
-                elif key == "tavily":
+                if key == "tavily":
                     logger.info(f"Enter credential of {secret_config['name']} (Tavily API Key):")
                     api_key = input(f"Creating {secret_config['name']} - Tavily API Key: ").strip()
                     secret_config["secret_value"]["tavily_api_key"] = api_key

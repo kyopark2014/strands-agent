@@ -106,16 +106,11 @@ with st.sidebar:
     mode = st.radio(label="원하는 대화 형태를 선택하세요. ", options=options, index=2)   
     st.info(mode_descriptions[mode][0])    
 
-    strands_tools = ["calculator", "current_time"]
-
-    mcp_selections = {}
-    strands_selections = {}
-    default_strands_tools = []
-    default_mcp_selections = ["basic", "filesystem", "use_aws"]
-
+    strands_tools = []
+    default_strands_tool_selections = ["current_time", "file_read", "file_write"]    
+    
     # mcp selection    
     mcp_options = [
-        "basic", 
         "use-aws", 
         "tavily", 
         "knowledge base", 
@@ -129,8 +124,14 @@ with st.sidebar:
         "notion",
         "outlook",
         "gog",
+        "korea_weather",
+        "AWS Sentral (Employee)",
+        "AWS Outlook (Employee)",
         "사용자 설정"
     ]
+
+    mcp_selections = {}    
+    default_mcp_selections = ["korea_weather", "web_fetch", "tavily"]
     
     if mode=="Agent" or mode=="Agent (Chat)":
         # Skill Config JSON input
@@ -153,16 +154,34 @@ with st.sidebar:
             with open(utils.config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, ensure_ascii=False, indent=4)
 
+        # Strands Tool Config JSON input
+        st.subheader("⚙️ Strands Tool Config")
+        
+        strands_tool_selections = {}
+        default_strands_tool_selections = config.get("default_strands_tool_selections") or default_strands_tool_selections
+        logger.info(f"default_strands_tool_selections: {default_strands_tool_selections}")
+        
+        with st.expander("Strands Tool 옵션 선택", expanded=True):
+            for tool in strands_tools:
+                default_value = tool in default_strands_tool_selections
+                strands_tool_selections[tool] = st.checkbox(tool, key=f"strands_tool_{tool}", value=default_value, disabled=False)
+        
+        selected_strands_tools = [name for name, is_selected in strands_tool_selections.items() if is_selected]
+        logger.info(f"selected_strands_tools: {selected_strands_tools}")
+        strands_selections = strands_tool_selections  # used at line 377
+
+        if selected_strands_tools != config.get("default_strands_tool_selections"):
+            config["default_strands_tool_selections"] = selected_strands_tools
+            with open(utils.config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
+            logger.info("save to config.json")
+
         # MCP Config JSON input
         st.subheader("⚙️ MCP Config")
 
-        # Change radio to checkbox        
-        mcp_selections = {}
-        default_selections = ["code interpreter", "aws_documentation"]
-        
         with st.expander("MCP 옵션 선택", expanded=True):
             for option in mcp_options:
-                default_value = option in default_selections
+                default_value = option in default_mcp_selections
                 mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
                 
         if mcp_selections["사용자 설정"]:
@@ -255,11 +274,11 @@ with st.sidebar:
         mcp_selections = {}
 
         plugin_path = os.path.join(plugin.PLUGINS_DIR, mode)
-        default_selections = plugin.load_plugin_mcp_servers_from_list(plugin_path)
+        default_mcp_selections = plugin.load_plugin_mcp_servers_from_list(plugin_path)
         
         with st.expander("MCP 옵션 선택", expanded=True):
             for option in mcp_options:
-                default_value = option in default_selections
+                default_value = option in default_mcp_selections
                 mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
                 
         if mcp_selections["사용자 설정"]:
