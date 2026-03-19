@@ -106,11 +106,11 @@ with st.sidebar:
     mode = st.radio(label="원하는 대화 형태를 선택하세요. ", options=options, index=2)   
     st.info(mode_descriptions[mode][0])    
 
-    strands_tools = []
+    strands_tools = ["current_time", "file_read", "file_write", "http_request"] 
     default_strands_tool_selections = ["current_time", "file_read", "file_write"]    
     
     # mcp selection    
-    mcp_options = [
+    mcp_tools = [
         "use-aws", 
         "tavily", 
         "knowledge base", 
@@ -180,7 +180,7 @@ with st.sidebar:
         st.subheader("⚙️ MCP Config")
 
         with st.expander("MCP 옵션 선택", expanded=True):
-            for option in mcp_options:
+            for option in mcp_tools:
                 default_value = option in default_mcp_selections
                 mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
                 
@@ -277,7 +277,7 @@ with st.sidebar:
         default_mcp_selections = plugin.load_plugin_mcp_servers_from_list(plugin_path)
         
         with st.expander("MCP 옵션 선택", expanded=True):
-            for option in mcp_options:
+            for option in mcp_tools:
                 default_value = option in default_mcp_selections
                 mcp_selections[option] = st.checkbox(option, key=f"mcp_{option}", value=default_value)
                 
