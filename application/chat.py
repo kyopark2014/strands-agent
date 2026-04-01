@@ -9,8 +9,6 @@ import re
 import PyPDF2
 import csv
 import os
-import strands_agent
-import agentcore_memory
 import json
 
 from botocore.config import Config
@@ -22,7 +20,7 @@ from io import BytesIO
 from langchain_core.documents import Document
 from botocore.exceptions import ClientError
 from langchain_core.messages import HumanMessage, AIMessage
-from typing import Literal, Optional
+
 # Simple memory class to replace ConversationBufferWindowMemory
 class SimpleMemory:
     def __init__(self, k=5):

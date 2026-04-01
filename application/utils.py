@@ -107,22 +107,6 @@ else:
         region_name=bedrock_region
     )
 
-# api key for weather
-weather_api_key = ""
-try:
-    get_weather_api_secret = secretsmanager.get_secret_value(
-        SecretId=f"openweathermap-{projectName}"
-    )
-    #print('get_weather_api_secret: ', get_weather_api_secret)
-    secret = json.loads(get_weather_api_secret['SecretString'])
-    #print('secret: ', secret)
-    weather_api_key = secret['weather_api_key']
-    if weather_api_key:
-        os.environ["OPENWEATHERMAP_API_KEY"] = weather_api_key
-
-except Exception as e:
-    raise e
-
 # api key for slack
 slack_bot_token = ""
 slack_team_id = ""
@@ -141,29 +125,33 @@ except Exception as e:
     logger.info(f"Slack credential is required: {e}")
     pass
 
-# api key to use Tavily Search
+# api key to use Tavily Search (Secrets Manager or env TAVILY_API_KEY)
 tavily_key = tavily_api_wrapper = ""
 try:
     get_tavily_api_secret = secretsmanager.get_secret_value(
         SecretId=f"tavilyapikey-{projectName}"
     )
-    #print('get_tavily_api_secret: ', get_tavily_api_secret)
-    secret = json.loads(get_tavily_api_secret['SecretString'])
-    #print('secret: ', secret)
+    secret = json.loads(get_tavily_api_secret["SecretString"])
 
     if "tavily_api_key" in secret:
-        tavily_key = secret['tavily_api_key']
-        #print('tavily_api_key: ', tavily_api_key)
+        tavily_key = secret["tavily_api_key"]
 
         if tavily_key:
             tavily_api_wrapper = TavilySearchAPIWrapper(tavily_api_key=tavily_key)
             os.environ["TAVILY_API_KEY"] = tavily_key
-
         else:
-            logger.info(f"tavily_key is required.")
-except Exception as e: 
-    logger.info(f"Tavily credential is required: {e}")
-    raise e
+            logger.info("tavily_api_key in secret is empty.")
+except Exception as e:
+    logger.warning(
+        "Tavily AWS secret unavailable (%s). Set TAVILY_API_KEY env or create secret tavilyapikey-%s.",
+        e,
+        projectName,
+    )
+
+if not tavily_key and os.environ.get("TAVILY_API_KEY"):
+    tavily_key = os.environ["TAVILY_API_KEY"].strip()
+    if tavily_key:
+        tavily_api_wrapper = TavilySearchAPIWrapper(tavily_api_key=tavily_key)
 
 # api key to use notion
 notion_key = ""
