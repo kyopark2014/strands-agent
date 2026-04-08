@@ -1,51 +1,31 @@
 ---
 name: search-strategy
-description: Query decomposition and multi-source search orchestration. Breaks natural language questions into targeted searches per source, translates queries into source-specific syntax, ranks results by relevance, and handles ambiguity and fallback strategies.
+description: "Query decomposition and multi-source search orchestration. Use when the user wants to search multiple sources, find information across databases, look up in different places, or combine search results. Breaks natural language questions into targeted searches per source, translates queries into source-specific syntax, ranks results by relevance, and handles ambiguity and fallback strategies."
 ---
 
 # Search Strategy
 
-> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../../CONNECTORS.md).
+> For connector details and tool references, see [CONNECTORS.md](../../CONNECTORS.md).
 
-The core intelligence behind enterprise search. Transforms a single natural language question into parallel, source-specific searches and produces ranked, deduplicated results.
-
-## The Goal
-
-Turn this:
-```
-"What did we decide about the API migration timeline?"
-```
-
-Into targeted searches across every connected source:
-```
-~~chat:  "API migration timeline decision" (semantic) + "API migration" in:#engineering after:2025-01-01
-~~knowledge base: semantic search "API migration timeline decision"
-~~project tracker:  text search "API migration" in relevant workspace
-```
-
-Then synthesize the results into a single coherent answer.
+Transforms a single natural language question into parallel, source-specific searches and produces ranked, deduplicated results.
 
 ## Query Decomposition
 
 ### Step 1: Identify Query Type
 
-Classify the user's question to determine search strategy:
-
 | Query Type | Example | Strategy |
 |-----------|---------|----------|
 | **Decision** | "What did we decide about X?" | Prioritize conversations (~~chat, email), look for conclusion signals |
-| **Status** | "What's the status of Project Y?" | Prioritize recent activity, task trackers, status updates |
+| **Status** | "What's the status of Project Y?" | Prioritize recent activity, task trackers |
 | **Document** | "Where's the spec for Z?" | Prioritize Drive, wiki, shared docs |
 | **Person** | "Who's working on X?" | Search task assignments, message authors, doc collaborators |
-| **Factual** | "What's our policy on X?" | Prioritize wiki, official docs, then confirmatory conversations |
-| **Temporal** | "When did X happen?" | Search with broad date range, look for timestamps |
-| **Exploratory** | "What do we know about X?" | Broad search across all sources, synthesize |
+| **Factual** | "What's our policy on X?" | Prioritize wiki, official docs |
+| **Temporal** | "When did X happen?" | Broad date range, look for timestamps |
+| **Exploratory** | "What do we know about X?" | Broad search across all sources |
 
 ### Step 2: Extract Search Components
 
-From the query, extract:
-
-- **Keywords**: Core terms that must appear in results
+- **Keywords**: Core terms that must appear
 - **Entities**: People, projects, teams, tools (use memory system if available)
 - **Intent signals**: Decision words, status words, temporal markers
 - **Constraints**: Time ranges, source hints, author filters
@@ -53,19 +33,9 @@ From the query, extract:
 
 ### Step 3: Generate Sub-Queries Per Source
 
-For each available source, create one or more targeted queries:
+**Semantic search** for conceptual/exploratory questions where exact keywords are unknown. **Keyword search** for known terms, exact phrases, and filter-heavy queries.
 
-**Prefer semantic search** for:
-- Conceptual questions ("What do we think about...")
-- Questions where exact keywords are unknown
-- Exploratory queries
-
-**Prefer keyword search** for:
-- Known terms, project names, acronyms
-- Exact phrases the user quoted
-- Filter-heavy queries (from:, in:, after:)
-
-**Generate multiple query variants** when the topic might be referred to differently:
+Generate multiple query variants when the topic might be referred to differently:
 ```
 User: "Kubernetes setup"
 Queries: "Kubernetes", "k8s", "cluster", "container orchestration"
@@ -75,20 +45,7 @@ Queries: "Kubernetes", "k8s", "cluster", "container orchestration"
 
 ### ~~chat
 
-**Semantic search** (natural language questions):
-```
-query: "What is the status of project aurora?"
-```
-
-**Keyword search:**
-```
-query: "project aurora status update"
-query: "aurora in:#engineering after:2025-01-15"
-query: "from:<@UserID> aurora"
-```
-
-**Filter mapping:**
-| Enterprise filter | ~~chat syntax |
+| Enterprise Filter | ~~chat Syntax |
 |------------------|--------------|
 | `from:sarah` | `from:sarah` or `from:<@USERID>` |
 | `in:engineering` | `in:engineering` |
@@ -99,29 +56,12 @@ query: "from:<@UserID> aurora"
 
 ### ~~knowledge base (Wiki)
 
-**Semantic search** — Use for conceptual queries:
-```
-descriptive_query: "API migration timeline and decision rationale"
-```
-
-**Keyword search** — Use for exact terms:
-```
-query: "API migration"
-query: "\"API migration timeline\""  (exact phrase)
-```
+Semantic: `descriptive_query: "API migration timeline and decision rationale"`
+Keyword: `query: "API migration"` or `"\"exact phrase\""`
 
 ### ~~project tracker
 
-**Task search:**
-```
-text: "API migration"
-workspace: [workspace_id]
-completed: false  (for status queries)
-assignee_any: "me"  (for "my tasks" queries)
-```
-
-**Filter mapping:**
-| Enterprise filter | ~~project tracker parameter |
+| Enterprise Filter | ~~project tracker Parameter |
 |------------------|----------------|
 | `from:sarah` | `assignee_any` or `created_by_any` |
 | `after:2025-01-01` | `modified_on_after: "2025-01-01"` |
@@ -129,93 +69,28 @@ assignee_any: "me"  (for "my tasks" queries)
 
 ## Result Ranking
 
-### Relevance Scoring
+Score each result weighted by query type:
 
-Score each result on these factors (weighted by query type):
-
-| Factor | Weight (Decision) | Weight (Status) | Weight (Document) | Weight (Factual) |
-|--------|-------------------|------------------|--------------------|-------------------|
+| Factor | Decision | Status | Document | Factual |
+|--------|----------|--------|----------|---------|
 | Keyword match | 0.3 | 0.2 | 0.4 | 0.3 |
 | Freshness | 0.3 | 0.4 | 0.2 | 0.1 |
 | Authority | 0.2 | 0.1 | 0.3 | 0.4 |
 | Completeness | 0.2 | 0.3 | 0.1 | 0.2 |
 
-### Authority Hierarchy
-
-Depends on query type:
-
-**For factual/policy questions:**
-```
-Wiki/Official docs > Shared documents > Email announcements > Chat messages
-```
-
-**For "what happened" / decision questions:**
-```
-Meeting notes > Thread conclusions > Email confirmations > Chat messages
-```
-
-**For status questions:**
-```
-Task tracker > Recent chat > Status docs > Email updates
-```
+**Authority hierarchy** varies by query type: wiki/official docs rank highest for factual queries; meeting notes and thread conclusions rank highest for decisions; task tracker ranks highest for status.
 
 ## Handling Ambiguity
 
-When a query is ambiguous, prefer asking one focused clarifying question over guessing:
-
-```
-Ambiguous: "search for the migration"
-→ "I found references to a few migrations. Are you looking for:
-   1. The database migration (Project Phoenix)
-   2. The cloud migration (AWS → GCP)
-   3. The email migration (Exchange → O365)"
-```
-
-Only ask for clarification when:
-- There are genuinely distinct interpretations that would produce very different results
-- The ambiguity would significantly affect which sources to search
-
-Do NOT ask for clarification when:
-- The query is clear enough to produce useful results
-- Minor ambiguity can be resolved by returning results from multiple interpretations
+Ask one focused clarifying question only when genuinely distinct interpretations would produce very different results. Do not ask when the query is clear enough or minor ambiguity can be resolved by returning results from multiple interpretations.
 
 ## Fallback Strategies
 
-When a source is unavailable or returns no results:
-
-1. **Source unavailable**: Skip it, search remaining sources, note the gap
-2. **No results from a source**: Try broader query terms, remove date filters, try alternate keywords
-3. **All sources return nothing**: Suggest query modifications to the user
-4. **Rate limited**: Note the limitation, return results from other sources, suggest retrying later
-
-### Query Broadening
-
-If initial queries return too few results:
-```
-Original: "PostgreSQL migration Q2 timeline decision"
-Broader:  "PostgreSQL migration"
-Broader:  "database migration"
-Broadest: "migration"
-```
-
-Remove constraints in this order:
-1. Date filters (search all time)
-2. Source/location filters
-3. Less important keywords
-4. Keep only core entity/topic terms
+1. **Source unavailable**: Skip, search remaining sources, note the gap
+2. **No results**: Broaden — remove date filters, then location filters, then less important keywords
+3. **All empty**: Suggest query modifications
+4. **Rate limited**: Return results from other sources, suggest retrying later
 
 ## Parallel Execution
 
-Always execute searches across sources in parallel, never sequentially. The total search time should be roughly equal to the slowest single source, not the sum of all sources.
-
-```
-[User query]
-     ↓ decompose
-[~~chat query] [~~email query] [~~cloud storage query] [Wiki query] [~~project tracker query]
-     ↓            ↓            ↓              ↓            ↓
-  (parallel execution)
-     ↓
-[Merge + Rank + Deduplicate]
-     ↓
-[Synthesized answer]
-```
+Always execute searches across sources in parallel. Total search time should equal the slowest single source, not the sum of all sources.
