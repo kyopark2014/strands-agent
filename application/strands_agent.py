@@ -9,6 +9,7 @@ import boto3
 import yaml
 import skill
 import chat
+import subprocess
 
 from contextlib import contextmanager
 from typing import Dict, List, Optional
@@ -305,9 +306,6 @@ _exec_globals = {
     "ARTIFACTS_DIR": ARTIFACTS_DIR,
 }
 
-import datetime
-from pytz import timezone
-
 @tool
 def execute_code(code: str) -> str:
     """Execute Python code and return stdout/stderr output.
@@ -388,58 +386,6 @@ def execute_code(code: str) -> str:
         tb = traceback.format_exc()
         logger.error(f"Code execution error: {tb}")
         return f"Error executing code:\n{tb}"
-
-@tool
-def write_file(filepath: str, content: str = "") -> str:
-    """Write text content to a file.
-
-    CRITICAL: content must always be passed. Calling without content will fail.
-    Never call without content. Both filepath and content are required in a single call.
-
-    Args:
-        filepath: Absolute path or path relative to WORKING_DIR.
-        content: The text content to write. REQUIRED - must not be omitted. Must include full file content.
-
-    Returns:
-        A success or failure message.
-    """
-    if not content:
-        return (
-            "Error: content parameter is required. "
-            "Pass the full content to save in the form write_file(filepath='path', content='content_to_save')."
-        )
-    logger.info(f"###### write_file: {filepath} ######")
-    try:
-        full_path = filepath if os.path.isabs(filepath) else os.path.join(WORKING_DIR, filepath)
-        parent = os.path.dirname(full_path)
-        if parent:
-            os.makedirs(parent, exist_ok=True)
-        with open(full_path, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        result_msg = f"File saved: {filepath}"
-        return result_msg
-    except Exception as e:
-        return f"Failed to save file: {str(e)}"
-
-
-@tool
-def read_file(filepath: str) -> str:
-    """Read the contents of a local file.
-
-    Args:
-        filepath: Absolute path or path relative to WORKING_DIR.
-
-    Returns:
-        The file contents as text, or an error message.
-    """
-    logger.info(f"###### read_file: {filepath} ######")
-    try:
-        full_path = filepath if os.path.isabs(filepath) else os.path.join(WORKING_DIR, filepath)
-        with open(full_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except Exception as e:
-        return f"Failed to read file: {str(e)}"
 
 
 @tool
@@ -632,10 +578,53 @@ def get_skill_instructions(plugin_name: str, skill_name: str) -> str:
     available = ", ".join(skill_mgr.registry.keys())
     return f"Skill '{skill_name}' not found. Available skills: {available}"
 
+def _ensure_cli_scripts_on_path() -> None:
+    """Prepend pip user script dir so CLIs (e.g. browser-use) resolve in subprocess."""
+    import site
+    import sysconfig
+
+    extra: list[str] = []
+    user_base = getattr(site, "USER_BASE", None)
+    if user_base:
+        user_bin = os.path.join(user_base, "bin")
+        if os.path.isdir(user_bin):
+            extra.append(user_bin)
+    try:
+        scripts = sysconfig.get_path("scripts")
+        if scripts and os.path.isdir(scripts):
+            extra.append(scripts)
+    except Exception:
+        pass
+    path = os.environ.get("PATH", "")
+    parts = [p for p in path.split(os.pathsep) if p]
+    for d in reversed(extra):
+        if d and d not in parts:
+            parts.insert(0, d)
+    os.environ["PATH"] = os.pathsep.join(parts)
+
+
+@tool
+def bash(command: str) -> str:
+    """Execute a bash command and return the result"""
+    logger.info(f"###### bash: {command} ######")
+    _ensure_cli_scripts_on_path()
+    result = subprocess.run(
+        command, shell=True, capture_output=True, text=True,
+        cwd=WORKING_DIR, timeout=300,
+        env=os.environ,
+    )
+    parts = []
+    if result.stdout:
+        parts.append(f"STDOUT:\n{result.stdout}")
+    if result.stderr:
+        parts.append(f"STDERR:\n{result.stderr}")
+    if result.returncode != 0:
+        parts.append(f"Return code: {result.returncode}")
+    return "\n".join(parts) if parts else "(no output)"
 
 def get_builtin_tools() -> list:
     """Return the list of built-in tools for the skill-aware agent."""
-    return [execute_code, write_file, read_file, upload_file_to_s3]
+    return [execute_code, bash, upload_file_to_s3]
 
 #########################################################
 # Strands Agent 

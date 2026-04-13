@@ -2,10 +2,9 @@ import os
 import chat
 import logging
 import sys
-import chat
 import plugin
 import strands_agent
-from typing import Literal, Optional
+from typing import Optional
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,17 +16,19 @@ logging.basicConfig(
 
 logger = logging.getLogger("plugin-agent")
 
-
 WORKING_DIR = os.path.dirname(os.path.abspath(__file__))
 ARTIFACTS_DIR = os.path.join(WORKING_DIR, "artifacts")
 PLUGINS_DIR = os.path.join(WORKING_DIR, "plugins")
 
+selected_strands_tools = []
+selected_mcp_servers = []
+active_plugin = None
 
 async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: list[str], plugin_name: Optional[str], containers: dict):
     """Run the plugin agent with streaming and tool notifications. Uses chat module for UI callbacks."""    
 
-    global tool_list
-    tool_list = []
+    global selected_strands_tools, selected_mcp_servers, active_plugin
+
     chat.index = 0
     chat.tool_info_list.clear()
     chat.tool_name_list.clear()
@@ -41,15 +42,31 @@ async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: li
         command = query.split(" ")[0].lstrip("/")
         logger.info(f"command: {command}")
 
-    # initiate agent
-    await strands_agent.initiate_agent(
-        system_prompt=None,
-        strands_tools=strands_tools,
-        mcp_servers=mcp_servers,
-        plugin_name=plugin_name,
-        command=command
-    )
-    logger.info(f"tool_list: {tool_list}")
+    if selected_strands_tools != strands_tools or selected_mcp_servers != mcp_servers or active_plugin != plugin_name:
+        selected_strands_tools = strands_tools
+        selected_mcp_servers = mcp_servers
+        active_plugin = plugin_name
+
+        strands_agent.mcp_manager.stop_agent_clients()
+
+        strands_agent.init_mcp_clients(mcp_servers)
+
+        tools = strands_agent.update_tools(strands_tools, mcp_servers)
+
+        if chat.skill_mode == 'Enable':
+            tools.append(strands_agent.get_skill_instructions)
+
+        strands_agent.agent = strands_agent.create_agent(tools, plugin_name, command)
+        tool_list = strands_agent.get_tool_list(tools)
+        logger.info(f"tool_list: {tool_list}")
+
+        strands_agent.mcp_manager.start_agent_clients(mcp_servers)
+
+    elif command:
+        tools = strands_agent.update_tools(strands_tools, mcp_servers)
+        if chat.skill_mode == 'Enable':
+            tools.append(strands_agent.get_skill_instructions)
+        strands_agent.agent = strands_agent.create_agent(tools, plugin_name, command)
 
     # run agent
     final_result = current = ""
@@ -76,34 +93,28 @@ async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: li
 
             elif "current_tool_use" in event:
                 current_tool_use = event["current_tool_use"]
-                # logger.info(f"current_tool_use: {current_tool_use}")
                 name = current_tool_use.get("name", "")
                 input_val = current_tool_use.get("input", "")
                 toolUseId = current_tool_use.get("toolUseId", "")
 
                 text = f"name: {name}, input: {input_val}"
-                # logger.info(f"[current_tool_use] {text}")
 
                 if toolUseId not in chat.tool_info_list:
                     index += 1
                     current = ""
-                    # logger.info(f"new tool info: {toolUseId} -> {index}")
                     chat.tool_info_list[toolUseId] = index
                     chat.tool_name_list[toolUseId] = name
                     chat.index = index
                     chat.add_notification(containers, f"Tool: {name}, Input: {input_val}")
                     index = chat.index
                 else:
-                    # logger.info(f"overwrite tool info: {toolUseId} -> {chat.tool_info_list[toolUseId]}")
                     containers['notification'][chat.tool_info_list[toolUseId]].info(f"Tool: {name}, Input: {input_val}")
 
             elif "message" in event:
                 message = event["message"]
-                # logger.info(f"[message] {message}")
 
                 if "content" in message:
                     content = message["content"]
-                    # logger.info(f"tool content: {content}")
                     if "toolResult" in content[0]:
                         toolResult = content[0]["toolResult"]
                         toolUseId = toolResult["toolUseId"]
@@ -143,4 +154,3 @@ async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: li
             containers['notification'][chat.index].markdown(final_result)
 
     return final_result, image_url
-
