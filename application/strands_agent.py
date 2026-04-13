@@ -13,7 +13,7 @@ import chat
 from contextlib import contextmanager
 from typing import Dict, List, Optional
 from strands.models import BedrockModel
-from strands_tools import calculator, current_time
+from strands_tools import current_time, file_read, file_write
 from strands.agent.conversation_manager import SlidingWindowConversationManager
 from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
@@ -31,7 +31,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-initiated = False
 strands_tools = []
 mcp_servers = []
 
@@ -41,9 +40,6 @@ memory_id = actor_id = session_id = namespace = None
 
 s3_prefix = "docs"
 capture_prefix = "captures"
-
-selected_strands_tools = []
-selected_mcp_servers = []
 
 aws_region = utils.bedrock_region
 
@@ -178,11 +174,9 @@ BASE_SYSTEM_PROMPT = (
     "5. 최종 결과를 사용자에게 전달한다\n"
 )
 
-def build_system_prompt(custom_prompt: Optional[str] = None, plugin_name: Optional[str] = None, command: Optional[str] = None) -> str:
+def build_system_prompt(plugin_name: Optional[str] = None, command: Optional[str] = None) -> str:
     """Assemble the full system prompt with available skills metadata."""
-    if custom_prompt:
-        base = custom_prompt
-    elif command:
+    if command:
         base = skill.build_command_prompt(plugin_name, command)
     elif plugin_name:
         base = skill.build_skill_prompt(plugin_name)
@@ -599,6 +593,46 @@ def memory_get(path: str, from_line: int = 0, lines: int = 0) -> str:
         return json.dumps({"text": f"Error reading file: {e}", "path": path}, ensure_ascii=False)
 
 
+@tool
+def get_skill_instructions(plugin_name: str, skill_name: str) -> str:
+    """Load the full instructions for a specific skill by name.
+
+    Use this when you need detailed instructions for a task that matches
+    one of the available skills listed in the system prompt.
+
+    Args:
+        plugin_name: The plugin name (e.g. 'base', 'frontend-design').
+        skill_name: The name of the skill to load (e.g. 'pdf').
+
+    Returns:
+        The full skill instructions, or an error message if not found.
+    """
+    logger.info(f"###### get_skill_instructions: {skill_name} (plugin={plugin_name}) ######")
+    skill_mgr = skill.skill_managers.get(plugin_name)
+    if skill_mgr is None:
+        if plugin_name == "base":
+            skills_dir = skill.SKILLS_DIR
+        else:
+            skills_dir = os.path.join(WORKING_DIR, "plugins", plugin_name, "skills")
+        skill_mgr = skill.SkillManager(skills_dir)
+        skill.skill_managers[plugin_name] = skill_mgr
+
+    instructions = skill_mgr.get_skill_instructions(skill_name)
+    if instructions:
+        return instructions
+
+    base_mgr = skill.skill_managers.get("base")
+    if base_mgr is None:
+        base_mgr = skill.SkillManager(skill.SKILLS_DIR)
+        skill.skill_managers["base"] = base_mgr
+    instructions = base_mgr.get_skill_instructions(skill_name)
+    if instructions:
+        return instructions
+
+    available = ", ".join(skill_mgr.registry.keys())
+    return f"Skill '{skill_name}' not found. Available skills: {available}"
+
+
 def get_builtin_tools() -> list:
     """Return the list of built-in tools for the skill-aware agent."""
     return [execute_code, write_file, read_file, upload_file_to_s3]
@@ -943,20 +977,34 @@ def init_mcp_clients(mcp_servers: list):
                 continue
                             
 def update_tools(strands_tools: list, mcp_servers: list):
-    tools = []
+    # builtin tools
+    tools = get_builtin_tools()
+        
     tool_map = {
-        "calculator": calculator,
-        "current_time": current_time
+        "current_time": current_time,
+        "file_read": file_read,
+        "file_write": file_write
     }
 
     for tool_item in strands_tools:
+        if isinstance(tool_item, str):
+            if tool_item in tool_map:
+                tools.append(tool_map[tool_item])
+            else:
+                logger.warning(f"Unknown string tool: {tool_item}")
+            continue
+
         if isinstance(tool_item, list):
             tools.extend(tool_item)
-        elif isinstance(tool_item, str) and tool_item in tool_map:
-            tools.append(tool_map[tool_item])
+            continue
+
+        if hasattr(tool_item, 'tool_name') and tool_item.tool_name in [t.tool_name if hasattr(t, 'tool_name') else str(t) for t in tools]:
+            logger.info(f"builtin tool {tool_item.tool_name} already in tools")
+            continue
+
+        tools.append(tool_item)
 
     # MCP tools
-    mcp_servers_loaded = 0
     for mcp_tool in mcp_servers:
         logger.info(f"Processing MCP tool: {mcp_tool}")        
         try:
@@ -967,10 +1015,14 @@ def update_tools(strands_tools: list, mcp_servers: list):
                     try:
                         mcp_servers_list = client.list_tools_sync()
                         # logger.info(f"{mcp_tool}_tools: {mcp_servers_list}")
-                        if mcp_servers_list:
-                            tools.extend(mcp_servers_list)
-                            mcp_servers_loaded += 1
-                            logger.info(f"Successfully added {len(mcp_servers_list)} tools from {mcp_tool} server")
+
+                        for mcp_server_item in mcp_servers_list:
+                            if mcp_server_item.tool_name in tools:
+                                logger.info(f"{mcp_server_item.tool_name} already in tools")
+                                continue
+
+                            tools.append(mcp_server_item)
+                            logger.info(f"Successfully added {mcp_server_item.tool_name} from {mcp_tool} server")
                         else:
                             logger.warning(f"No tools returned from {mcp_tool}")
                     except Exception as tool_error:
@@ -986,20 +1038,16 @@ def update_tools(strands_tools: list, mcp_servers: list):
             
     return tools
 
-def create_agent(system_prompt: Optional[str], tools: list, plugin_name: Optional[str], command: Optional[str] = None):
-    if system_prompt==None:
-        system_prompt = (
-            "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
-            "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
-            "모르는 질문을 받으면 솔직히 모른다고 말합니다."
-            "결과 파일이 있으면 upload_file_to_s3로 업로드하여 URL을 제공합니다."
-        )
+BASE_SYSTEM_PROMPT = (
+    "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
+    "상황에 맞는 구체적인 세부 정보를 충분히 제공합니다." 
+    "모르는 질문을 받으면 솔직히 모른다고 말합니다."
+    "결과 파일이 있으면 upload_file_to_s3로 업로드하여 URL을 제공합니다."
+)
 
-    if not system_prompt or not system_prompt.strip():
-        system_prompt = "You are a helpful AI assistant."
-    
+def create_agent(tools: list, plugin_name: Optional[str], command: Optional[str] = None):
     # add skills metadata to system prompt
-    system_prompt = build_system_prompt(system_prompt, plugin_name, command)
+    system_prompt = build_system_prompt(plugin_name, command)
 
     model = get_model()
     
@@ -1024,72 +1072,13 @@ def get_tool_list(tools):
             tool_list.append(module_name)
     return tool_list
 
-async def initiate_agent(system_prompt: Optional[str], strands_tools: list[str], mcp_servers: list[str], plugin_name: Optional[str], command: Optional[str] = None):
-    global agent, initiated
-    global selected_strands_tools, selected_mcp_servers, tool_list
 
-    update_required = False
-    if selected_strands_tools != strands_tools:
-        selected_strands_tools = strands_tools
-        update_required = True
-        logger.info(f"strands_tools: {strands_tools}")
-
-    if selected_mcp_servers != mcp_servers:
-        selected_mcp_servers = mcp_servers
-        update_required = True
-        logger.info(f"mcp_servers: {mcp_servers}")
-
-    if not initiated or update_required:
-        mcp_manager.stop_agent_clients()
-        
-        init_mcp_clients(mcp_servers)
-        tools = update_tools(strands_tools, mcp_servers)
-        logger.info(f"tools: {tools}")
-
-        def tool_name(t):
-            return getattr(t, 'tool_name', None) or getattr(t, 'name', None)
-
-        builtin_tools = get_builtin_tools()
-        # logger.info(f"builtin_tools: {builtin_tools}")
-        tool_names = {tool_name(t) for t in tools if tool_name(t)}
-        for bt in builtin_tools:
-            bt_name = tool_name(bt)
-            if bt_name and bt_name not in tool_names:
-                tools.append(bt)
-            elif bt_name:
-                logger.info(f"builtin_tool {bt_name} already in tools")
-
-        if chat.skill_mode == 'Enable':
-            skill_tools = skill.get_skill_tools()
-            # logger.info(f"skill_tools: {skill_tools}")                    
-            tool_names = {tool_name(t) for t in tools if tool_name(t)}
-            for bt in skill_tools:
-                bt_name = tool_name(bt)
-                if bt_name and bt_name not in tool_names:
-                    tools.append(bt)
-                elif bt_name:
-                    logger.info(f"skill_tools {bt_name} already in tools")
-
-        agent = create_agent(system_prompt, tools, plugin_name, command)
-        tool_list = get_tool_list(tools)
-
-        if not initiated:
-            logger.info("create agent!")
-            initiated = True
-        else:
-            logger.info("update agent!")
-            update_required = False
-    
-    # Start or reuse persistent MCP clients
-    mcp_manager.start_agent_clients(mcp_servers)
-
+selected_strands_tools = []
+selected_mcp_servers = []
+active_plugin = None
 
 async def run_strands_agent(query: str, strands_tools: list[str], mcp_servers: list[str], plugin_name: Optional[str], containers: dict):
     """Run the strands agent with streaming and tool notifications. Uses chat module for UI callbacks."""
-    
-
-    global tool_list
-    tool_list = []
     chat.index = 0
     chat.tool_info_list.clear()
     chat.tool_name_list.clear()
@@ -1098,14 +1087,27 @@ async def run_strands_agent(query: str, strands_tools: list[str], mcp_servers: l
     references = []
     index = 0
 
-    # initiate agent
-    await initiate_agent(
-        system_prompt=None,
-        strands_tools=strands_tools,
-        mcp_servers=mcp_servers,
-        plugin_name=plugin_name
-    )
-    logger.info(f"tool_list: {tool_list}")
+    global agent, selected_strands_tools, selected_mcp_servers, active_plugin
+
+    if selected_strands_tools != strands_tools or selected_mcp_servers != mcp_servers or active_plugin != plugin_name:        
+        selected_strands_tools = strands_tools
+        selected_mcp_servers = mcp_servers
+        active_plugin = plugin_name
+        
+        mcp_manager.stop_agent_clients()
+        
+        init_mcp_clients(mcp_servers)
+
+        tools = update_tools(strands_tools, mcp_servers)
+
+        if chat.skill_mode == 'Enable':
+            tools.append(get_skill_instructions)
+
+        agent = create_agent(tools, plugin_name)
+        tool_list = get_tool_list(tools)
+    
+        # Start or reuse persistent MCP clients
+        mcp_manager.start_agent_clients(mcp_servers)
 
     # run agent
     final_result = current = ""

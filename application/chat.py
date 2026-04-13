@@ -62,7 +62,7 @@ projectName = config.get("projectName", "strands")
 accountId = config.get("accountId", None)
 knowledge_base_id = config.get('knowledge_base_id', None)
 account_id = config.get("accountId", None)
-user_id = 'strands'
+user_id = 'agent'
 
 if accountId is None:
     raise Exception ("No accountId")
@@ -242,8 +242,11 @@ def traslation(chat, text, input_language, output_language):
     return msg[msg.find('<result>')+8:len(msg)-9] # remove <result> tag
 
 def initiate():
-    global memory_chain, map_chain
+    global memory_chain, map_chain, user_id
+
+    user_id = uuid.uuid4().hex
     
+    # general conversation memory
     if user_id in map_chain:  
         logger.info(f"memory exist. reuse it!")
         memory_chain = map_chain[user_id]
@@ -703,7 +706,9 @@ def update_rag_result(containers, message):
 #########################################################
 def general_conversation(query):
     global memory_chain
-    initiate()  # Initialize memory_chain
+
+    if memory_chain is None:
+        initiate()  # Initialize memory_chain
 
     system_prompt = (
         "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
