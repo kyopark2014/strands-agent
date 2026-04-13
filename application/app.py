@@ -539,10 +539,10 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 #     response, urls = asyncio.run(strands_swarm.run_swarm_parallel(prompt, selected_strands_tools, selected_mcp_servers, containers))
                 response, urls = asyncio.run(strands_swarm.run_swarm(prompt, selected_strands_tools, selected_mcp_servers, containers))
 
-                if urls:
-                    with st.expander(f"최종 결과"):
-                        url_msg = '\n\n'.join(urls)
-                        st.markdown(url_msg)
+            if urls:
+                with st.expander(f"최종 결과"):
+                    url_msg = '\n\n'.join(urls)
+                    st.markdown(url_msg)
 
         elif mode == 'Strands Swarm Tool':
             with st.status("thinking...", expanded=True, state="running") as status:

@@ -25,13 +25,15 @@ mcp_user_config = {}
 def load_config(mcp_type):
     if mcp_type == "aws document":
         mcp_type = 'aws_documentation'
+    elif mcp_type == "tavily-search":
+        mcp_type = "tavily"
     if mcp_type == "code interpreter":
         mcp_type = "repl_coder"
     elif mcp_type == "AWS Sentral (Employee)":
         mcp_type = "aws_sentral"
     elif mcp_type == "AWS Outlook (Employee)":
-        mcp_type = "aws_outlook"
-    
+        mcp_type = "aws_outlook"    
+
     if mcp_type == "basic":
         return {
             "mcpServers": {
