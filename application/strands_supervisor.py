@@ -26,17 +26,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-index = 0
-def add_notification(containers, message):
-    global index
-    containers['notification'][index].info(message)
-    index += 1
-
-def add_response(containers, message):
-    global index
-    containers['notification'][index].markdown(message)
-    index += 1
-
 status_msg = []
 def get_status_msg(status):
     global status_msg
@@ -52,12 +41,12 @@ def get_status_msg(status):
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
 async def show_streams(agent_stream, containers):
+    queue = containers['queue']
     tool_name = ""
     result = ""
     current_response = ""
 
     async for event in agent_stream:
-        # logger.info(f"event: {event}")
         if "message" in event:
             message = event["message"]
             logger.info(f"message: {message}")
@@ -66,7 +55,7 @@ async def show_streams(agent_stream, containers):
                 if "text" in content:
                     logger.info(f"text: {content['text']}")
                     if chat.debug_mode == 'Enable':
-                        add_response(containers, content['text'])
+                        queue.respond(content['text'])
 
                     result = content['text']
                     current_response = ""
@@ -80,7 +69,7 @@ async def show_streams(agent_stream, containers):
                     
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                     if chat.debug_mode == 'Enable':       
-                        add_notification(containers, f"tool name: {tool_name}, arg: {input}")
+                        queue.notify(f"tool name: {tool_name}, arg: {input}")
                         containers['status'].info(get_status_msg(f"{tool_name}"))
             
                 if "toolResult" in content:
@@ -92,14 +81,14 @@ async def show_streams(agent_stream, containers):
                         for content in tool_content:
                             if "text" in content:
                                 if chat.debug_mode == 'Enable':
-                                    add_notification(containers, f"tool result: {content['text']}")
+                                    queue.notify(f"tool result: {content['text']}")
 
         if "data" in event:
             text_data = event["data"]
             current_response += text_data
 
             if chat.debug_mode == 'Enable':
-                containers["notification"][index].markdown(current_response)
+                queue.stream(current_response)
             continue
     
     return result
@@ -128,22 +117,21 @@ def create_mcp_client(mcp_server_name: str):
     return mcp_client
 
 def isKorean(text):
-    # check korean
     pattern_hangul = re.compile('[\u3131-\u3163\uac00-\ud7a3]+')
     word_kor = pattern_hangul.search(str(text))
-    # print('word_kor: ', word_kor)
 
     if word_kor and word_kor != 'None':
-        # logger.info(f"Korean: {word_kor}")
         return True
     else:
-        # logger.info(f"Not Korean:: {word_kor}")
         return False
 
 # supervisor agent
 async def run_agent(question, containers):
     global status_msg
     status_msg = []
+
+    queue = containers['queue']
+    queue.reset()
 
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"(start"))    

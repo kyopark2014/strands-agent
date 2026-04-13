@@ -20,17 +20,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-index = 0
-def add_notification(containers, message):
-    global index
-    containers['notification'][index].info(message)
-    index += 1
-
-def add_response(containers, message):
-    global index
-    containers['notification'][index].markdown(message)
-    index += 1
-
 status_msg = []
 def get_status_msg(status):
     global status_msg
@@ -46,12 +35,12 @@ def get_status_msg(status):
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
 async def show_streams(agent_stream, containers):
+    queue = containers['queue']
     tool_name = ""
     result = ""
     current_response = ""
 
     async for event in agent_stream:
-        # logger.info(f"event: {event}")
         if "message" in event:
             message = event["message"]
             logger.info(f"message: {message}")
@@ -60,7 +49,7 @@ async def show_streams(agent_stream, containers):
                 if "text" in content:
                     logger.info(f"text: {content['text']}")
                     if chat.debug_mode == 'Enable':
-                        add_response(containers, content['text'])
+                        queue.respond(content['text'])
 
                     result = content['text']
                     current_response = ""
@@ -74,7 +63,7 @@ async def show_streams(agent_stream, containers):
                     
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                     if chat.debug_mode == 'Enable':       
-                        add_notification(containers, f"tool name: {tool_name}, arg: {input}")
+                        queue.notify(f"tool name: {tool_name}, arg: {input}")
                         containers['status'].info(get_status_msg(f"{tool_name}"))
             
                 if "toolResult" in content:
@@ -86,14 +75,14 @@ async def show_streams(agent_stream, containers):
                         for content in tool_content:
                             if "text" in content:
                                 if chat.debug_mode == 'Enable':
-                                    add_notification(containers, f"tool result: {content['text']}")
+                                    queue.notify(f"tool result: {content['text']}")
 
         if "data" in event:
             text_data = event["data"]
             current_response += text_data
 
             if chat.debug_mode == 'Enable':
-                containers["notification"][index].markdown(current_response)
+                queue.stream(current_response)
             continue
     
     return result
@@ -102,6 +91,9 @@ import strands_agent
 
 # agetic workflow
 async def run_workflow(question, containers):
+    queue = containers['queue']
+    queue.reset()
+
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"(start"))    
 
@@ -123,21 +115,21 @@ async def run_workflow(question, containers):
     )
 
     # Step 1: Research
-    add_notification(containers, f"질문: {question}")
+    queue.notify(f"질문: {question}")
     query = f"다음의 질문을 분석하세요. <question>{question}</question>"
     research_stream = researcher.stream_async(query)
     research_result = await show_streams(research_stream, containers)    
     logger.info(f"research_results: {research_result}")
 
     # Step 2: Analysis
-    add_notification(containers, f"분석: {research_result}")
+    queue.notify(f"분석: {research_result}")
     analysis = f"다음을 분석해서 필요한 데이터를 추가하고 이해하기 쉽게 분석하세요. <research>{research_result}</research>"
     analysis_stream = analyst.stream_async(analysis)
     analysis_result = await show_streams(analysis_stream, containers)    
     logger.info(f"analysis_results: {analysis_result}")
 
     # Step 3: Report writing
-    add_notification(containers, f"보고서: {analysis_result}")
+    queue.notify(f"보고서: {analysis_result}")
     report = f"다음의 내용을 참조하여 상세한 보고서를 작성하세요. <subject>{analysis_result}</subject>"
     report_stream = writer.stream_async(report)
     report_result = await show_streams(report_stream, containers)    
@@ -200,9 +192,6 @@ async def run_workflow_tool(question, containers):
     status = agent.tool.workflow(action="status", workflow_id="data_analysis")
     logger.info(f"status of workflow: {status}")
 
-    #agent_stream = agent.stream_async(question)
-    #result = await show_streams(agent_stream, containers)
-    
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"end)"))
 

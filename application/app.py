@@ -21,6 +21,7 @@ import plugin
 import utils
 import skill
 import plugin_agent
+from notification_queue import NotificationQueue
 
 logging.basicConfig(
     level=logging.INFO,  
@@ -505,7 +506,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 containers = {
                     "tools": st.empty(),
                     "status": st.empty(),
-                    "notification": [st.empty() for _ in range(1000)],
+                    "queue": NotificationQueue(container=status),
                     "key": st.empty()
                 }
 
@@ -521,7 +522,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 containers = {
                     "tools": st.empty(),
                     "status": st.empty(),
-                    "notification": [st.empty() for _ in range(1000)],
+                    "queue": NotificationQueue(container=status),
                     "key": st.empty()
                 }
                 
@@ -532,7 +533,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 containers = {
                     "tools": st.empty(),
                     "status": st.empty(),
-                    "notification": [st.empty() for _ in range(1000)],
+                    "queue": NotificationQueue(container=status),
                     "key": st.empty()
                 }
                 # if multiRegion == 'Enable':
@@ -549,7 +550,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 containers = {
                     "tools": st.empty(),
                     "status": st.empty(),
-                    "notification": [st.empty() for _ in range(1000)],
+                    "queue": NotificationQueue(container=status),
                     "key": st.empty()
                 }
                 response = asyncio.run(strands_swarm_tool.run_swarm_tool(prompt, containers))
@@ -559,7 +560,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 containers = {
                     "tools": st.empty(),
                     "status": st.empty(),
-                    "notification": [st.empty() for _ in range(1000)],
+                    "queue": NotificationQueue(container=status),
                     "key": st.empty()
                 }
                 response = asyncio.run(strands_code_swarm.run_code_swarm(prompt, containers))
@@ -569,7 +570,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 containers = {
                     "tools": st.empty(),
                     "status": st.empty(),
-                    "notification": [st.empty() for _ in range(1000)],
+                    "queue": NotificationQueue(container=status),
                     "key": st.empty()
                 }
             #response = asyncio.run(strands_workflow.run_workflow_tool(prompt, containers)) # workflow tool
@@ -580,7 +581,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 containers = {
                     "tools": st.empty(),
                     "status": st.empty(),
-                    "notification": [st.empty() for _ in range(1000)],
+                    "queue": NotificationQueue(container=status),
                     "key": st.empty()
                 }
                 response = asyncio.run(strands_graph.run_graph(prompt, containers))
@@ -590,7 +591,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 containers = {
                     "tools": st.empty(),
                     "status": st.empty(),
-                    "notification": [st.empty() for _ in range(1000)],
+                    "queue": NotificationQueue(container=status),
                     "key": st.empty()
                 }
             response = asyncio.run(strands_graph_builder.run_graph_builder(prompt, containers))
@@ -600,7 +601,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 containers = {
                     "tools": st.empty(),
                     "status": st.empty(),
-                    "notification": [st.empty() for _ in range(1000)],
+                    "queue": NotificationQueue(container=status),
                     "key": st.empty()
                 }
             response = asyncio.run(strands_plan_and_execute.run_plan_and_execute_with_graph(prompt, containers))
@@ -610,7 +611,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                 containers = {
                     "tools": st.empty(),
                     "status": st.empty(),
-                    "notification": [st.empty() for _ in range(1000)],
+                    "queue": NotificationQueue(container=status),
                     "key": st.empty()
                 }
             response = asyncio.run(strands_graph_with_loop.run_graph_with_loop(prompt, containers))
@@ -622,7 +623,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                         containers = {
                             "tools": st.empty(),
                             "status": st.empty(),
-                            "notification": [st.empty() for _ in range(1000)],
+                            "queue": NotificationQueue(container=status),
                             "key": st.empty()
                         }
                     response, image_urls = asyncio.run(plugin_agent.run_plugin_agent(prompt, selected_strands_tools, selected_mcp_servers, plugin["name"], containers))

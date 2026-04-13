@@ -20,30 +20,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-streaming_index = None
-index = 0
-def add_notification(containers, message):
-    global index
-
-    if index == streaming_index:
-        index += 1
-
-    if containers is not None:
-        containers['notification'][index].info(message)
-    index += 1
-
-def update_streaming_result(containers, message):
-    global streaming_index
-    streaming_index = index 
-
-    if containers is not None:
-        containers['notification'][streaming_index].markdown(message)
-
-def add_response(containers, message):
-    global index
-    containers['notification'][index].markdown(message)
-    index += 1
-
 status_msg = []
 def get_status_msg(status):
     global status_msg
@@ -59,12 +35,12 @@ def get_status_msg(status):
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
 async def show_streams(agent_stream, containers):
+    queue = containers['queue']
     tool_name = ""
     result = ""
     current_response = ""
 
     async for event in agent_stream:
-        # logger.info(f"event: {event}")
         if "message" in event:
             message = event["message"]
             logger.info(f"message: {message}")
@@ -73,7 +49,7 @@ async def show_streams(agent_stream, containers):
                 if "text" in content:
                     logger.info(f"text: {content['text']}")
                     if chat.debug_mode == 'Enable':
-                        add_response(containers, content['text'])
+                        queue.respond(content['text'])
 
                     result = content['text']
                     current_response = ""
@@ -87,7 +63,7 @@ async def show_streams(agent_stream, containers):
                     
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                     if chat.debug_mode == 'Enable':       
-                        add_notification(containers, f"tool name: {tool_name}, arg: {input}")
+                        queue.notify(f"tool name: {tool_name}, arg: {input}")
                         containers['status'].info(get_status_msg(f"{tool_name}"))
             
                 if "toolResult" in content:
@@ -99,29 +75,24 @@ async def show_streams(agent_stream, containers):
                         for content in tool_content:
                             if "text" in content:
                                 if chat.debug_mode == 'Enable':
-                                    add_notification(containers, f"tool result: {content['text']}")
+                                    queue.notify(f"tool result: {content['text']}")
 
         if "data" in event:
             text_data = event["data"]
             current_response += text_data
 
             if chat.debug_mode == 'Enable':
-                containers["notification"][index].markdown(current_response)
+                queue.stream(current_response)
             continue
     
     return result
-
-# supervisor agent
-tool_info_list = dict()
-tool_result_list = dict()
-tool_name_list = dict()
 
 async def run_swarm_tool(question, containers):
     global status_msg
     status_msg = []
 
-    global index
-    index = 0
+    queue = containers['queue']
+    queue.reset()
 
     system_prompt = (
         "당신의 이름은 서연이고, 질문에 대해 친절하게 답변하는 사려깊은 인공지능 도우미입니다."
@@ -150,7 +121,7 @@ async def run_swarm_tool(question, containers):
             text = event["data"]
             logger.info(f"[data] {text}")
             current += text
-            update_streaming_result(containers, current)
+            queue.stream(current)
 
         elif "result" in event:
             final = event["result"]                
@@ -171,34 +142,26 @@ async def run_swarm_tool(question, containers):
             text = f"name: {name}, input: {input}"
             logger.info(f"[current_tool_use] {text}")
 
-            if toolUseId not in tool_info_list: # new tool info
-                index += 1
-                current = ""
-                logger.info(f"new tool info: {toolUseId} -> {index}")
-                tool_info_list[toolUseId] = index
-                tool_name_list[toolUseId] = name
-                add_notification(containers, f"Tool: {name}, Input: {input}")
-            else: # overwrite tool info if already exists
-                logger.info(f"overwrite tool info: {toolUseId} -> {tool_info_list[toolUseId]}")
-                containers['notification'][tool_info_list[toolUseId]].info(f"Tool: {name}, Input: {input}")
+            queue.register_tool(toolUseId, name)
+            queue.tool_update(toolUseId, f"Tool: {name}, Input: {input}")
+            current = ""
 
         elif "message" in event:
             message = event["message"]
             logger.info(f"[message] {message}")
 
             if "content" in message:
-                content = message["content"]
-                logger.info(f"tool content: {content}")
-                if "toolResult" in content[0]:
-                    toolResult = content[0]["toolResult"]
+                msg_content = message["content"]
+                logger.info(f"tool content: {msg_content}")
+                for item in msg_content:
+                    if "toolResult" not in item:
+                        continue
+                    toolResult = item["toolResult"]
                     toolUseId = toolResult["toolUseId"]
                     toolContent = toolResult["content"]
-                    toolResult = toolContent[0].get("text", "")
-                    logger.info(f"[toolResult] {toolResult}, [toolUseId] {toolUseId}")
-                    add_notification(containers, f"Tool Result: {str(toolResult)}")
-
-                    if content:
-                        logger.info(f"content: {content}")                
+                    toolResultText = toolContent[0].get("text", "")
+                    logger.info(f"[toolResult] {toolResultText}, [toolUseId] {toolUseId}")
+                    queue.notify(f"Tool Result: {str(toolResultText)}")                
             
         elif "contentBlockDelta" or "contentBlockStop" or "messageStop" or "metadata" in event:
             pass

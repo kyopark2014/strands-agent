@@ -20,36 +20,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-index = 0
-def add_notification(containers, message):
-    global index
-    containers['notification'][index].info(message)
-    index += 1
-
-def add_response(containers, message):
-    global index
-    containers['notification'][index].markdown(message)
-    index += 1
-
-streaming_index = None
-
-def update_streaming_result(containers, message):
-    global streaming_index
-    streaming_index = index 
-
-    if containers is not None:
-        containers['notification'][streaming_index].markdown(message)
-
-def update_tool_notification(containers, tool_index, message):
-    if containers is not None:
-        containers['notification'][tool_index].info(message)
-
-tool_info_list = dict()
-tool_result_list = dict()
-tool_name_list = dict()
-
 async def show_result(graph_result, containers):
     """Batch processing for GraphResult object"""
+    queue = containers['queue']
     result = ""
     
     # Debug: Log the GraphResult object structure
@@ -58,37 +31,37 @@ async def show_result(graph_result, containers):
     
     # Process execution order information
     if hasattr(graph_result, 'execution_order'):
-        add_notification(containers, "=== Execution Order ===")
+        queue.notify("=== Execution Order ===")
         for node in graph_result.execution_order:
-            add_notification(containers, f"Executed: {node.node_id}")
+            queue.notify(f"Executed: {node.node_id}")
     
     # Process performance metrics
     if hasattr(graph_result, 'total_nodes'):
-        add_notification(containers, f"Total nodes: {graph_result.total_nodes}")
+        queue.notify(f"Total nodes: {graph_result.total_nodes}")
     if hasattr(graph_result, 'completed_nodes'):
-        add_notification(containers, f"Completed nodes: {graph_result.completed_nodes}")
+        queue.notify(f"Completed nodes: {graph_result.completed_nodes}")
     if hasattr(graph_result, 'failed_nodes'):
-        add_notification(containers, f"Failed nodes: {graph_result.failed_nodes}")
+        queue.notify(f"Failed nodes: {graph_result.failed_nodes}")
     if hasattr(graph_result, 'execution_time'):
-        add_notification(containers, f"Execution time: {graph_result.execution_time}ms")
+        queue.notify(f"Execution time: {graph_result.execution_time}ms")
     if hasattr(graph_result, 'accumulated_usage'):
-        add_notification(containers, f"Token usage: {graph_result.accumulated_usage}")
+        queue.notify(f"Token usage: {graph_result.accumulated_usage}")
     
     # Process specific node results and combine them
     if hasattr(graph_result, 'results'):
-        add_notification(containers, "=== Individual Node Results ===")
+        queue.notify("=== Individual Node Results ===")
         node_results = []
         for node_id, node_result in graph_result.results.items():
             if hasattr(node_result, 'result'):
                 node_content = f"{node_id}: {node_result.result}"
-                add_notification(containers, node_content)
+                queue.notify(node_content)
                 node_results.append(node_content)
         
         # Combine individual node results as the final result
         if node_results:
             result = "\n\n".join(node_results)
             logger.info(f"Combined result from individual nodes: {result}")
-            update_streaming_result(containers, result)
+            queue.stream(result)
     
     return result
 
@@ -122,12 +95,12 @@ def get_tool_list(tools):
 
 debug_mode = 'Enable'
 async def show_streams(agent_stream, containers):
+    queue = containers['queue']
     tool_name = ""
     result = ""
     current_response = ""
 
     async for event in agent_stream:
-        # logger.info(f"event: {event}")
         if "message" in event:
             message = event["message"]
             logger.info(f"message: {message}")
@@ -136,7 +109,7 @@ async def show_streams(agent_stream, containers):
                 if "text" in content:
                     logger.info(f"text: {content['text']}")
                     if debug_mode == 'Enable':
-                        add_response(containers, content['text'])
+                        queue.respond(content['text'])
 
                     result = content['text']
                     current_response = ""
@@ -150,7 +123,7 @@ async def show_streams(agent_stream, containers):
                     
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                     if debug_mode == 'Enable':       
-                        add_notification(containers, f"tool name: {tool_name}, arg: {input}")
+                        queue.notify(f"tool name: {tool_name}, arg: {input}")
             
                 if "toolResult" in content:
                     tool_result = content["toolResult"]
@@ -169,21 +142,20 @@ async def show_streams(agent_stream, containers):
                                 logger.info(f"text_value: {text_value}")
                                 logger.info(f"text_value type: {type(text_value)}")
                                 
-                                # 코루틴 객체 문자열인지 확인
                                 if isinstance(text_value, str) and '<coroutine object' in text_value:
                                     logger.info("Detected coroutine string, tool may still be executing...")
                                     if debug_mode == 'Enable':
-                                        add_notification(containers, f"tool result: Tool execution in progress...")
+                                        queue.notify(f"tool result: Tool execution in progress...")
                                 else:
                                     if debug_mode == 'Enable':
-                                        add_notification(containers, f"tool result: {text_value}")
+                                        queue.notify(f"tool result: {text_value}")
 
         if "data" in event:
             text_data = event["data"]
             current_response += text_data
 
             if debug_mode == 'Enable':
-                containers["notification"][index].markdown(current_response)
+                queue.stream(current_response)
             continue
     
     logger.info(f"show_streams completed, final result: {result}")
@@ -220,11 +192,8 @@ class QualityChecker(MultiAgentBase):
         )
 
 async def run_graph_with_loop(question, containers):
-    global status_msg
-    status_msg = []
-
-    global index
-    index = 0
+    queue = containers['queue']
+    queue.reset()
 
     tool = "tavily-search"
     config = mcp_config.load_config(tool)
@@ -329,8 +298,6 @@ async def run_graph_with_loop(question, containers):
         logger.info(f"final_result: {final_result}")
 
         if containers is not None:
-            containers['notification'][index].markdown(final_result)
+            queue.result(final_result)
 
     return final_result
-
-

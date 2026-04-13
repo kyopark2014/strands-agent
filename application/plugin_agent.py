@@ -25,17 +25,15 @@ selected_mcp_servers = []
 active_plugin = None
 
 async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: list[str], plugin_name: Optional[str], containers: dict):
-    """Run the plugin agent with streaming and tool notifications. Uses chat module for UI callbacks."""    
+    """Run the plugin agent with streaming and tool notifications."""    
 
     global selected_strands_tools, selected_mcp_servers, active_plugin
 
-    chat.index = 0
-    chat.tool_info_list.clear()
-    chat.tool_name_list.clear()
+    queue = containers['queue']
+    queue.reset()
 
     image_url = []
     references = []
-    index = 0
 
     command = None
     if plugin.is_command(query, plugin_name):
@@ -79,8 +77,7 @@ async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: li
                 text = event["data"]
                 logger.info(f"[data] {text}")
                 current += text
-                chat.index = index
-                chat.update_streaming_result(containers, current)
+                queue.stream(current)
 
             elif "result" in event:
                 final = event["result"]
@@ -99,32 +96,27 @@ async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: li
 
                 text = f"name: {name}, input: {input_val}"
 
-                if toolUseId not in chat.tool_info_list:
-                    index += 1
-                    current = ""
-                    chat.tool_info_list[toolUseId] = index
-                    chat.tool_name_list[toolUseId] = name
-                    chat.index = index
-                    chat.add_notification(containers, f"Tool: {name}, Input: {input_val}")
-                    index = chat.index
-                else:
-                    containers['notification'][chat.tool_info_list[toolUseId]].info(f"Tool: {name}, Input: {input_val}")
+                queue.register_tool(toolUseId, name)
+                queue.tool_update(toolUseId, f"Tool: {name}, Input: {input_val}")
+                current = ""
 
             elif "message" in event:
                 message = event["message"]
 
                 if "content" in message:
-                    content = message["content"]
-                    if "toolResult" in content[0]:
-                        toolResult = content[0]["toolResult"]
+                    msg_content = message["content"]
+                    for item in msg_content:
+                        if "toolResult" not in item:
+                            continue
+                        toolResult = item["toolResult"]
                         toolUseId = toolResult["toolUseId"]
                         toolContent = toolResult["content"]
-                        toolResult = toolContent[0].get("text", "")
-                        tool_name = chat.tool_name_list[toolUseId]
-                        logger.info(f"[toolResult] {toolResult}, [toolUseId] {toolUseId}")
-                        chat.add_notification(containers, f"Tool Result: {str(toolResult)}")
+                        toolResultText = toolContent[0].get("text", "")
+                        tool_name = queue.get_tool_name(toolUseId)
+                        logger.info(f"[toolResult] {toolResultText}, [toolUseId] {toolUseId}")
+                        queue.notify(f"Tool Result: {str(toolResultText)}")
 
-                        content, urls, refs = chat.get_tool_info(tool_name, toolResult)
+                        info_content, urls, refs = chat.get_tool_info(tool_name, toolResultText)
                         if refs:
                             for r in refs:
                                 references.append(r)
@@ -134,8 +126,8 @@ async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: li
                                 image_url.append(url)
                             logger.info(f"urls: {urls}")
 
-                        if content:
-                            logger.info(f"content: {content}")
+                        if info_content:
+                            logger.info(f"content: {info_content}")
 
             elif "contentBlockDelta" or "contentBlockStop" or "messageStop" or "metadata" in event:
                 pass
@@ -151,6 +143,6 @@ async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: li
             final_result += ref
 
         if containers is not None:
-            containers['notification'][chat.index].markdown(final_result)
+            queue.result(final_result)
 
     return final_result, image_url

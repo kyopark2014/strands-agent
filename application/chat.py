@@ -671,35 +671,21 @@ def upload_to_s3_artifacts(file_bytes, file_name):
         logger.info(f"{err_msg}")
         return None
 
-streaming_index = None
-index = 0
 def add_notification(containers, message):
-    global index
-
-    if index == streaming_index:
-        index += 1
-
     if containers is not None:
-        containers['notification'][index].info(message)
-    index += 1
+        containers['queue'].notify(message)
 
 def update_streaming_result(containers, message):
-    global streaming_index
-    streaming_index = index 
-
     if containers is not None:
-        containers['notification'][streaming_index].markdown(message)
+        containers['queue'].stream(message)
 
-def update_tool_notification(containers, tool_index, message):
+def update_tool_notification(containers, tool_use_id, message):
     if containers is not None:
-        containers['notification'][tool_index].info(message)
+        containers['queue'].tool_update(tool_use_id, message)
 
 def update_rag_result(containers, message):
-    global streaming_index
-    streaming_index = index 
-
     if containers is not None:
-        containers['message'].markdown(message)
+        containers['queue'].stream(message)
 
 ####################### boto3 #######################
 # General Conversation
@@ -1195,10 +1181,6 @@ def run_rag_using_retrieve_and_generate(query, containers):
     update_rag_result(containers, msg)
 
     return msg
-
-tool_info_list = dict()
-tool_result_list = dict()
-tool_name_list = dict()
 
 sharing_url = config["sharing_url"] if "sharing_url" in config else None
 s3_prefix = "docs"

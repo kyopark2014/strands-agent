@@ -17,35 +17,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-streaming_index = None
-index = 0
-def add_notification(containers, message):
-    global index
-
-    if index == streaming_index:
-        index += 1
-
-    if containers is not None:
-        containers['notification'][index].info(message)
-    index += 1
-
-def update_streaming_result(containers, message):
-    global streaming_index
-    streaming_index = index 
-
-    if containers is not None:
-        containers['notification'][streaming_index].markdown(message)
-
-def update_tool_notification(containers, tool_index, message):
-    if containers is not None:
-        containers['notification'][tool_index].info(message)
-
-tool_info_list = dict()
-tool_result_list = dict()
-tool_name_list = dict()
-
 async def show_streams(agent_stream, containers):
     """streaming event handling"""
+    queue = containers['queue']
     result = ""
     current = ""
     
@@ -55,7 +29,7 @@ async def show_streams(agent_stream, containers):
             text = event["data"]
             logger.info(f"[data] {text}")
             current += text
-            update_streaming_result(containers, current)
+            queue.stream(current)
 
         elif "result" in event:
             final = event["result"]                
@@ -75,33 +49,27 @@ async def show_streams(agent_stream, containers):
             text = f"name: {name}, input: {input}"
             logger.info(f"[current_tool_use] {text}")
 
-            if toolUseId not in tool_info_list: # new tool info
-                global index
-                index += 1
-                current = ""
-                logger.info(f"new tool info: {toolUseId} -> {index}")
-                tool_info_list[toolUseId] = index
-                tool_name_list[toolUseId] = name
-                add_notification(containers, f"Tool: {name}, Input: {input}")
-            else: # overwrite tool info if already exists
-                logger.info(f"overwrite tool info: {toolUseId} -> {tool_info_list[toolUseId]}")
-                containers['notification'][tool_info_list[toolUseId]].info(f"Tool: {name}, Input: {input}")
+            queue.register_tool(toolUseId, name)
+            queue.tool_update(toolUseId, f"Tool: {name}, Input: {input}")
+            current = ""
 
         elif "message" in event:
             message = event["message"]
             logger.info(f"[message] {message}")
 
             if "content" in message:
-                content = message["content"]
-                logger.info(f"tool content: {content}")
-                if "toolResult" in content[0]:
-                    toolResult = content[0]["toolResult"]
+                msg_content = message["content"]
+                logger.info(f"tool content: {msg_content}")
+                for item in msg_content:
+                    if "toolResult" not in item:
+                        continue
+                    toolResult = item["toolResult"]
                     toolUseId = toolResult["toolUseId"]
                     toolContent = toolResult["content"]
-                    toolResult = toolContent[0].get("text", "")
-                    tool_name = tool_name_list[toolUseId]
-                    logger.info(f"[toolResult] {toolResult}, [toolUseId] {toolUseId}")
-                    add_notification(containers, f"Tool Result: {str(toolResult)}")
+                    toolResultText = toolContent[0].get("text", "")
+                    tool_name = queue.get_tool_name(toolUseId)
+                    logger.info(f"[toolResult] {toolResultText}, [toolUseId] {toolUseId}")
+                    queue.notify(f"Tool Result: {str(toolResultText)}")
             
         elif "contentBlockDelta" or "contentBlockStop" or "messageStop" or "metadata" in event:
             pass
@@ -112,42 +80,8 @@ async def show_streams(agent_stream, containers):
     return result
 
 async def run_code_swarm(question, containers):
-    global status_msg
-    status_msg = []
-
-    global index
-    index = 0
-
-    # Create specialized agents for the swarm
-    # researcher = Agent(
-    #     name="researcher", 
-    #     system_prompt="You are a research specialist who analyzes requirements and provides detailed specifications."
-    # )
-    # coder = Agent(
-    #     name="coder", 
-    #     system_prompt="You are a coding specialist who implements solutions based on specifications."
-    # )
-    # reviewer = Agent(
-    #     name="reviewer", 
-    #     system_prompt="You are a code review specialist who ensures code quality and best practices."
-    # )
-    # architect = Agent(
-    #     name="architect", system_prompt="You are a system architecture specialist who designs scalable and maintainable solutions."
-    # )
-    
-    # # Create a swarm with these agents
-    # swarm = Swarm(
-    #     [researcher, coder, reviewer, architect],
-    #     max_handoffs=20,
-    #     max_iterations=20,
-    #     execution_timeout=900.0,  # 15 minutes
-    #     node_timeout=300.0,       # 5 minutes per agent
-    #     repetitive_handoff_detection_window=8,  # There must be >= 3 unique agents in the last 8 handoffs
-    #     repetitive_handoff_min_unique_agents=3
-    # )
-
-    # # streaming event handling
-    # agent_stream = swarm(question)
+    queue = containers['queue']
+    queue.reset()
 
     # swarm tool
     agent = Agent(
@@ -190,7 +124,7 @@ async def run_code_swarm(question, containers):
             text = event["data"]
             logger.info(f"[data] {text}")
             current += text
-            update_streaming_result(containers, current)
+            queue.stream(current)
 
         elif "result" in event:
             final = event["result"]                
@@ -211,32 +145,27 @@ async def run_code_swarm(question, containers):
             text = f"name: {name}, input: {input}"
             logger.info(f"[current_tool_use] {text}")
 
-            if toolUseId not in tool_info_list: # new tool info
-                index += 1
-                current = ""
-                logger.info(f"new tool info: {toolUseId} -> {index}")
-                tool_info_list[toolUseId] = index
-                tool_name_list[toolUseId] = name
-                add_notification(containers, f"Tool: {name}, Input: {input}")
-            else: # overwrite tool info if already exists
-                logger.info(f"overwrite tool info: {toolUseId} -> {tool_info_list[toolUseId]}")
-                containers['notification'][tool_info_list[toolUseId]].info(f"Tool: {name}, Input: {input}")
+            queue.register_tool(toolUseId, name)
+            queue.tool_update(toolUseId, f"Tool: {name}, Input: {input}")
+            current = ""
 
         elif "message" in event:
             message = event["message"]
             logger.info(f"[message] {message}")
 
             if "content" in message:
-                content = message["content"]
-                logger.info(f"tool content: {content}")
-                if "toolResult" in content[0]:
-                    toolResult = content[0]["toolResult"]
+                msg_content = message["content"]
+                logger.info(f"tool content: {msg_content}")
+                for item in msg_content:
+                    if "toolResult" not in item:
+                        continue
+                    toolResult = item["toolResult"]
                     toolUseId = toolResult["toolUseId"]
                     toolContent = toolResult["content"]
-                    toolResult = toolContent[0].get("text", "")
-                    tool_name = tool_name_list[toolUseId]
-                    logger.info(f"[toolResult] {toolResult}, [toolUseId] {toolUseId}")
-                    add_notification(containers, f"Tool Result: {str(toolResult)}")
+                    toolResultText = toolContent[0].get("text", "")
+                    tool_name = queue.get_tool_name(toolUseId)
+                    logger.info(f"[toolResult] {toolResultText}, [toolUseId] {toolUseId}")
+                    queue.notify(f"Tool Result: {str(toolResultText)}")
             
         elif "contentBlockDelta" or "contentBlockStop" or "messageStop" or "metadata" in event:
             pass
@@ -245,7 +174,7 @@ async def run_code_swarm(question, containers):
             logger.info(f"event: {event}")
 
     if containers is not None:
-        containers['notification'][index].markdown(final_result)
+        queue.result(final_result)
 
     logger.info(f"Final result: {final_result}")
 

@@ -20,17 +20,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-index = 0
-def add_notification(containers, message):
-    global index
-    containers['notification'][index].info(message)
-    index += 1
-
-def add_response(containers, message):
-    global index
-    containers['notification'][index].markdown(message)
-    index += 1
-
 status_msg = []
 def get_status_msg(status):
     global status_msg
@@ -46,12 +35,12 @@ def get_status_msg(status):
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
 async def show_streams(agent_stream, containers):
+    queue = containers['queue']
     tool_name = ""
     result = ""
     current_response = ""
 
     async for event in agent_stream:
-        # logger.info(f"event: {event}")
         if "message" in event:
             message = event["message"]
             logger.info(f"message: {message}")
@@ -60,7 +49,7 @@ async def show_streams(agent_stream, containers):
                 if "text" in content:
                     logger.info(f"text: {content['text']}")
                     if chat.debug_mode == 'Enable':
-                        add_response(containers, content['text'])
+                        queue.respond(content['text'])
 
                     result = content['text']
                     current_response = ""
@@ -74,7 +63,7 @@ async def show_streams(agent_stream, containers):
                     
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                     if chat.debug_mode == 'Enable':       
-                        add_notification(containers, f"tool name: {tool_name}, arg: {input}")
+                        queue.notify(f"tool name: {tool_name}, arg: {input}")
                         containers['status'].info(get_status_msg(f"{tool_name}"))
             
                 if "toolResult" in content:
@@ -94,21 +83,20 @@ async def show_streams(agent_stream, containers):
                                 logger.info(f"text_value: {text_value}")
                                 logger.info(f"text_value type: {type(text_value)}")
                                 
-                                # 코루틴 객체 문자열인지 확인
                                 if isinstance(text_value, str) and '<coroutine object' in text_value:
                                     logger.info("Detected coroutine string, tool may still be executing...")
                                     if chat.debug_mode == 'Enable':
-                                        add_notification(containers, f"tool result: Tool execution in progress...")
+                                        queue.notify(f"tool result: Tool execution in progress...")
                                 else:
                                     if chat.debug_mode == 'Enable':
-                                        add_notification(containers, f"tool result: {text_value}")
+                                        queue.notify(f"tool result: {text_value}")
 
         if "data" in event:
             text_data = event["data"]
             current_response += text_data
 
             if chat.debug_mode == 'Enable':
-                containers["notification"][index].markdown(current_response)
+                queue.stream(current_response)
             continue
     
     logger.info(f"show_streams completed, final result: {result}")
@@ -116,21 +104,20 @@ async def show_streams(agent_stream, containers):
     return result
 
 def isKorean(text):
-    # check korean
     pattern_hangul = re.compile('[\u3131-\u3163\uac00-\ud7a3]+')
     word_kor = pattern_hangul.search(str(text))
-    # print('word_kor: ', word_kor)
 
     if word_kor and word_kor != 'None':
-        # logger.info(f"Korean: {word_kor}")
         return True
     else:
-        # logger.info(f"Not Korean:: {word_kor}")
         return False
 
 async def run_graph(question, containers):
     global status_msg
     status_msg = []
+
+    queue = containers['queue']
+    queue.reset()
 
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"(start"))    
@@ -145,7 +132,7 @@ async def run_graph(question, containers):
             callback_handler=None
         )
 
-        add_notification(containers, f"market_research: {query}")
+        queue.notify(f"market_research: {query}")
         agent_stream = market_agent.stream_async(query)
         result = await show_streams(agent_stream, containers)
         logger.info(f"market_research completed, result: {result}")
@@ -171,7 +158,7 @@ async def run_graph(question, containers):
             callback_handler=None
         )
 
-        add_notification(containers, f"financial_analysis: {query}")
+        queue.notify(f"financial_analysis: {query}")
         agent_stream = financial_agent.stream_async(query)
         result = await show_streams(agent_stream, containers)
         logger.info(f"financial_analysis completed, result: {result}")
@@ -199,7 +186,7 @@ async def run_graph(question, containers):
             callback_handler=None
         )
 
-        add_notification(containers, f"technical_analysis: {query}")
+        queue.notify(f"technical_analysis: {query}")
         agent_stream = tech_agent.stream_async(query)
         result = await show_streams(agent_stream, containers)
         logger.info(f"technical_analysis completed, result: {result}")
@@ -228,7 +215,7 @@ async def run_graph(question, containers):
             callback_handler=None
         )
 
-        add_notification(containers, f"social_analysis: {query}")
+        queue.notify(f"social_analysis: {query}")
         agent_stream = social_agent.stream_async(query)
         result = await show_streams(agent_stream, containers)
         logger.info(f"social_analysis completed, result: {result}")
@@ -265,7 +252,7 @@ async def run_graph(question, containers):
             callback_handler=None
         )
 
-        add_notification(containers, f"economic_department: {query}")
+        queue.notify(f"economic_department: {query}")
         agent_stream = econ_manager.stream_async(query)
         result = await show_streams(agent_stream, containers)
         logger.info(f"economic_department completed, result: {result}")
@@ -303,7 +290,7 @@ async def run_graph(question, containers):
         callback_handler=None
     )
 
-    add_notification(containers, f"질문: {question}")
+    queue.notify(f"질문: {question}")
     agent_stream = coordinator.stream_async(f"Provide a comprehensive analysis of: {question}")
     result = await show_streams(agent_stream, containers)
     logger.info(f"coordinator result: {result}")

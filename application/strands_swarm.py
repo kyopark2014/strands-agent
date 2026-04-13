@@ -25,17 +25,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-index = 0
-def add_notification(containers, message):
-    global index
-    containers['notification'][index].info(message)
-    index += 1
-
-def add_response(containers, message):
-    global index
-    containers['notification'][index].markdown(message)
-    index += 1
-
 status_msg = []
 def get_status_msg(status):
     global status_msg
@@ -51,6 +40,7 @@ def get_status_msg(status):
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
 def initiate_report(question, containers):
+    queue = containers['queue']
     # request id
     request_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
     template = open(os.path.join(os.path.dirname(__file__), f"swarm_report.html")).read()
@@ -61,7 +51,7 @@ def initiate_report(question, containers):
 
     report_url = chat.path + "/artifacts/" + request_id + ".html"
     logger.info(f"report_url: {report_url}")
-    add_response(containers, f"report_url: {report_url}")
+    queue.respond(f"report_url: {report_url}")
 
     # upload diagram to s3
     random_id = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
@@ -136,12 +126,12 @@ async def create_final_report(request_id, question, body, report_url):
     return urls
 
 async def show_streams(agent_stream, containers, debug_mode):
+    queue = containers['queue']
     tool_name = ""
     result = ""
     current_response = ""
 
     async for event in agent_stream:
-        # logger.info(f"event: {event}")
         if "message" in event:
             message = event["message"]
             logger.info(f"message: {message}")
@@ -150,7 +140,7 @@ async def show_streams(agent_stream, containers, debug_mode):
                 if "text" in content:
                     logger.info(f"text: {content['text']}")
                     if debug_mode is not 'Demo':
-                        add_response(containers, content['text'])
+                        queue.respond(content['text'])
 
                     result = content['text']
                     current_response = ""
@@ -164,7 +154,7 @@ async def show_streams(agent_stream, containers, debug_mode):
                     
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                     if debug_mode == 'Enable':       
-                        add_notification(containers, f"tool name: {tool_name}, arg: {input}")
+                        queue.notify(f"tool name: {tool_name}, arg: {input}")
                         containers['status'].info(get_status_msg(f"{tool_name}"))
             
                 if "toolResult" in content:
@@ -176,35 +166,34 @@ async def show_streams(agent_stream, containers, debug_mode):
                         for content in tool_content:
                             if "text" in content:
                                 if debug_mode == 'Enable':
-                                    add_notification(containers, f"tool result: {content['text']}")
+                                    queue.notify(f"tool result: {content['text']}")
 
         if "data" in event:
             text_data = event["data"]
             current_response += text_data
 
             if debug_mode == 'Enable':
-                containers["notification"][index].markdown(current_response)
+                queue.stream(current_response)
             continue
     
     return result
 
 def isKorean(text):
-    # check korean
     pattern_hangul = re.compile('[\u3131-\u3163\uac00-\ud7a3]+')
     word_kor = pattern_hangul.search(str(text))
-    # print('word_kor: ', word_kor)
 
     if word_kor and word_kor != 'None':
-        # logger.info(f"Korean: {word_kor}")
         return True
     else:
-        # logger.info(f"Not Korean:: {word_kor}")
         return False
     
 # swarm agent
 async def run_swarm(question, selected_strands_tools, selected_mcp_servers, containers):    
     global status_msg
     status_msg = []
+
+    queue = containers['queue']
+    queue.reset()
 
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"(start"))    
@@ -311,8 +300,8 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
     summarizer_messages = []
     
     # Phase 1: Initial analysis by each specialized agent
-    add_notification(containers, f"Phase 1: Initial analysis by each specialized agent")
-    add_notification(containers, f"research agent")
+    queue.notify(f"Phase 1: Initial analysis by each specialized agent")
+    queue.notify(f"research agent")
 
     debug_mode = chat.debug_mode # Enable, Disable, Demo
     with strands_agent.mcp_manager.get_active_clients(selected_mcp_servers) as _:
@@ -322,23 +311,23 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
         update_report("research", request_id, research_result)
 
         if debug_mode == 'Demo':
-            add_response(containers, research_result)
+            queue.respond(research_result)
     
-        add_notification(containers, f"creative agent")
+        queue.notify(f"creative agent")
         result = creative_agent.stream_async(question)
         creative_result = await show_streams(result, containers, debug_mode)
         update_report("creative", request_id, creative_result)
 
         if debug_mode == 'Demo':
-            add_response(containers, creative_result)
+            queue.respond(creative_result)
     
-        add_notification(containers, f"critical agent")
+        queue.notify(f"critical agent")
         result = critical_agent.stream_async(question)
         critical_result = await show_streams(result, containers, debug_mode)
         update_report("critical", request_id, critical_result)
 
         if debug_mode == 'Demo':
-            add_response(containers, critical_result)
+            queue.respond(critical_result)
     
     # Share results with all other agents (mesh communication)    
     creative_messages.append(f"From Research Agent: {research_result}")
@@ -357,14 +346,12 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
     next_research_message = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(research_messages)
     logger.info(f"next_research_message: {next_research_message}")
     next_creative_message = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(creative_messages)
-    # logger.info(f"next_creative_message: {next_creative_message}")
     next_critical_message = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(critical_messages)
-    # logger.info(f"next_critical_message: {next_critical_message}")
 
-    add_notification(containers, f"Phase 2: Each agent refines based on input from others")
-    add_notification(containers, f"refined research agent")
-    add_notification(containers, f"refined creative agent")
-    add_notification(containers, f"refined critical agent")
+    queue.notify(f"Phase 2: Each agent refines based on input from others")
+    queue.notify(f"refined research agent")
+    queue.notify(f"refined creative agent")
+    queue.notify(f"refined critical agent")
 
     with strands_agent.mcp_manager.get_active_clients(selected_mcp_servers) as _:
         result = research_agent.stream_async(next_research_message)
@@ -373,23 +360,23 @@ async def run_swarm(question, selected_strands_tools, selected_mcp_servers, cont
         update_report("research", request_id, refined_research)
 
         if debug_mode == 'Demo':
-            add_response(containers, refined_research)
+            queue.respond(refined_research)
     
-        add_notification(containers, f"refined creative agent")
+        queue.notify(f"refined creative agent")
         result = creative_agent.stream_async(next_creative_message)
         refined_creative = await show_streams(result, containers, debug_mode)
         update_report("creative", request_id, refined_creative)
 
         if debug_mode == 'Demo':
-            add_response(containers, refined_creative)
+            queue.respond(refined_creative)
     
-        add_notification(containers, f"refined critical agent")
+        queue.notify(f"refined critical agent")
         result = critical_agent.stream_async(next_critical_message)
         refined_critical = await show_streams(result, containers, debug_mode)
         update_report("critical", request_id, refined_critical)
 
         if debug_mode == 'Demo':
-            add_response(containers, refined_critical)
+            queue.respond(refined_critical)
     
     # Share refined results with summarizer
     summarizer_messages.append(f"From Research Agent (Phase 2): {refined_research}")
@@ -411,14 +398,14 @@ creative ideas, and addresses the critical feedback.
 """
 
     with strands_agent.mcp_manager.get_active_clients(selected_mcp_servers) as _:
-        add_notification(containers, f"summarizer agent")
+        queue.notify(f"summarizer agent")
         result = summarizer_agent.stream_async(next_summarizer_message)
         final_solution = await show_streams(result, containers, "Disable")
         logger.info(f"final_solution: {final_solution}")
         update_report("summarizer", request_id, final_solution)
 
         if debug_mode == 'Demo':
-            add_response(containers, final_solution)
+            queue.respond(final_solution)
 
     urls = await create_final_report(request_id, question, final_solution, report_url)
     logger.info(f"urls: {urls}")
@@ -430,7 +417,6 @@ creative ideas, and addresses the critical feedback.
 
 ############## Parallel version ##############
 def create_research_agent(question, tools):
-    # research agent
     if isKorean(question):
         system_prompt = (
             "당신은 정보 수집과 분석을 전문으로 하는 연구원입니다. "
@@ -454,7 +440,6 @@ def create_research_agent(question, tools):
     return research_agent
 
 def create_creative_agent(question, tools):
-    # Creative Agent
     if isKorean(question):
         system_prompt = (
             "당신은 혁신적인 솔루션 생성을 전문으로 하는 창의적 에이전트입니다. "
@@ -478,7 +463,6 @@ def create_creative_agent(question, tools):
     return creative_agent
 
 def create_critical_agent(question, tools):
-# Critical Agent
     if isKorean(question):
         system_prompt = (
             "당신은 제안서를 분석하고 결함을 찾는 것을 전문으로 하는 비판적 에이전트입니다. "
@@ -502,7 +486,6 @@ def create_critical_agent(question, tools):
     return critical_agent
 
 def create_summarizer_agent(question, tools):
-    # summarizer agent
     if isKorean(question):
         system_prompt = (
             "당신은 정보 종합을 전문으로 하는 요약 에이전트입니다. "
@@ -532,7 +515,6 @@ async def get_agent_result(agent_stream):
     return result
 
 async def _research_agent_worker(research_agent, question, request_id):
-    # research agent
     result = research_agent.stream_async(question)
     research_result = await get_agent_result(result)
     logger.info(f"research_result: {research_result}")
@@ -540,14 +522,12 @@ async def _research_agent_worker(research_agent, question, request_id):
     return research_result
 
 async def _creative_agent_worker(creative_agent, question, request_id):
-    # creative agent
     result = creative_agent.stream_async(question)
     creative_result = await get_agent_result(result)
     update_report("creative", request_id, creative_result)
     return creative_result
 
 async def _critical_agent_worker(critical_agent, question, request_id):
-    # critical agent
     result = critical_agent.stream_async(question)
     critical_result = await get_agent_result(result)
     update_report("critical", request_id, critical_result)
@@ -556,6 +536,9 @@ async def _critical_agent_worker(critical_agent, question, request_id):
 async def run_swarm_parallel(question, selected_strands_tools, selected_mcp_servers, containers):    
     global status_msg
     status_msg = []
+
+    queue = containers['queue']
+    queue.reset()
 
     if chat.debug_mode == 'Enable':
         containers['status'].info(get_status_msg(f"(start"))    
@@ -581,10 +564,10 @@ async def run_swarm_parallel(question, selected_strands_tools, selected_mcp_serv
     critical_messages = []
 
     # Phase 1: Initial analysis by each specialized agent
-    add_notification(containers, f"Phase 1: Initial analysis by each specialized agent")
-    add_notification(containers, f"research agent...")
-    add_notification(containers, f"creative agent...")
-    add_notification(containers, f"critical agent...")
+    queue.notify(f"Phase 1: Initial analysis by each specialized agent")
+    queue.notify(f"research agent...")
+    queue.notify(f"creative agent...")
+    queue.notify(f"critical agent...")
 
     debug_mode = chat.debug_mode # Enable, Disable, Demo
     with strands_agent.mcp_manager.get_active_clients(selected_mcp_servers) as _:
@@ -596,9 +579,9 @@ async def run_swarm_parallel(question, selected_strands_tools, selected_mcp_serv
         results = await asyncio.gather(*tasks)
         research_result, creative_result, critical_result = results
 
-        add_notification(containers, f"### Research Agent\n{research_result}")
-        add_notification(containers, f"### Creative Agent\n{creative_result}")
-        add_notification(containers, f"### Critical Agent\n{critical_result}")
+        queue.notify(f"### Research Agent\n{research_result}")
+        queue.notify(f"### Creative Agent\n{creative_result}")
+        queue.notify(f"### Critical Agent\n{critical_result}")
     
     summarizer_agent = create_summarizer_agent(question, tools)
     summarizer_messages = []
@@ -619,14 +602,12 @@ async def run_swarm_parallel(question, selected_strands_tools, selected_mcp_serv
     next_research_message = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(research_messages)
     logger.info(f"next_research_message: {next_research_message}")
     next_creative_message = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(creative_messages)
-    # logger.info(f"next_creative_message: {next_creative_message}")
     next_critical_message = f"{question}\n\nConsider these messages from other agents:\n" + "\n\n".join(critical_messages)
-    # logger.info(f"next_critical_message: {next_critical_message}")
 
-    add_notification(containers, f"Phase 2: Each agent refines based on input from others")
-    add_notification(containers, f"refined research agent...")
-    add_notification(containers, f"refined creative agent...")
-    add_notification(containers, f"refined critical agent...")
+    queue.notify(f"Phase 2: Each agent refines based on input from others")
+    queue.notify(f"refined research agent...")
+    queue.notify(f"refined creative agent...")
+    queue.notify(f"refined critical agent...")
 
     with strands_agent.mcp_manager.get_active_clients(selected_mcp_servers) as _:
         tasks = [
@@ -637,9 +618,9 @@ async def run_swarm_parallel(question, selected_strands_tools, selected_mcp_serv
         results = await asyncio.gather(*tasks)
         refined_research, refined_creative, refined_critical = results
     
-        add_notification(containers, f"### Research Agent (Refined)\n{refined_research}")
-        add_notification(containers, f"### Creative Agent (Refined)\n{refined_creative}")
-        add_notification(containers, f"### Critical Agent (Refined)\n{refined_critical}")
+        queue.notify(f"### Research Agent (Refined)\n{refined_research}")
+        queue.notify(f"### Creative Agent (Refined)\n{refined_creative}")
+        queue.notify(f"### Critical Agent (Refined)\n{refined_critical}")
     
     # Share refined results with summarizer
     summarizer_messages.append(f"From Research Agent (Phase 2): {refined_research}")
@@ -661,14 +642,14 @@ creative ideas, and addresses the critical feedback.
 """
 
     with strands_agent.mcp_manager.get_active_clients(selected_mcp_servers) as _:
-        add_notification(containers, f"summarizer agent")
+        queue.notify(f"summarizer agent")
         result = summarizer_agent.stream_async(next_summarizer_message)
         final_solution = await show_streams(result, containers, "Disable")
         logger.info(f"final_solution: {final_solution}")
         update_report("summarizer", request_id, final_solution)
 
         if debug_mode == 'Demo':
-            add_response(containers, final_solution)
+            queue.respond(final_solution)
 
     urls = await create_final_report(request_id, question, final_solution, report_url)
     logger.info(f"urls: {urls}")
