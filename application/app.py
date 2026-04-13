@@ -1,7 +1,9 @@
 import streamlit as st 
+import streamlit_paste_button as spb
 import chat
 import json
 import os
+import io
 import mcp_config 
 import asyncio
 import logging
@@ -87,6 +89,9 @@ mode_descriptions = {
     ],
     "frontend-design": [
         "Frontend Design Plugin을 사용할 수 있습니다."
+    ],
+    "이미지 분석": [
+        "이미지를 선택하여 멀티모달을 이용하여 분석합니다."
     ]
 }
 
@@ -102,8 +107,20 @@ with st.sidebar:
     
     # radio selection
     options = [
-        "일상적인 대화", 'RAG', 'Agent', 'Strands Supervisor', 'Strands Swarm', 'Strands Swarm Tool', 'Strands Code Swarm', 'Strands Workflow', 'Strands Graph', \
-        'Strands Graph Builder', 'Strands Plan and Execute', 'Strands Graph With Loop'] + [plugin["name"] for plugin in plugin_list]
+        "일상적인 대화", 
+        'RAG', 
+        'Agent',         
+        'Strands Supervisor', 
+        'Strands Swarm', 
+        'Strands Swarm Tool', 
+        'Strands Code Swarm', 
+        'Strands Workflow', 
+        'Strands Graph', 
+        'Strands Graph Builder', 
+        'Strands Plan and Execute', 
+        'Strands Graph With Loop',
+        '이미지 분석'
+    ] + [plugin["name"] for plugin in plugin_list]
     mode = st.radio(label="원하는 대화 형태를 선택하세요. ", options=options, index=2)   
     st.info(mode_descriptions[mode][0])    
 
@@ -370,7 +387,28 @@ with st.sidebar:
         logger.info(f"reasoningMode: {reasoningMode}")
 
     uploaded_file = None
-    if mode=="RAG" or mode=="Agent" or mode=="Agent (Chat)":
+    pasted_image = None
+
+    def safe_paste_button(label, key):
+        """streamlit-paste-button 래퍼: 내부 이미지 디코딩 실패 시 안전하게 처리"""
+        try:
+            result = spb.paste_image_button(label, key=key, errors="ignore")
+            if result.image_data is not None:
+                return result.image_data
+        except Exception as e:
+            logger.warning(f"clipboard paste error: {e}")
+        return None
+
+    if mode == '이미지 분석':
+        st.subheader("🌇 이미지 업로드")
+        uploaded_file = st.file_uploader("이미지 분석을 위한 파일을 선택합니다.", type=["png", "jpg", "jpeg"], key=chat.fileId)
+
+        st.markdown("**또는** 화면 캡처를 붙여넣으세요:")
+        pasted_image = safe_paste_button("📋 클립보드에서 붙여넣기", key="paste_image")
+        if pasted_image:
+            st.image(pasted_image, caption="붙여넣은 이미지", use_container_width=True)
+
+    elif mode=="RAG" or mode=="Agent" or mode=="Agent (Chat)":
         st.subheader("📋 문서 업로드")
         uploaded_file = st.file_uploader("RAG를 위한 파일을 선택합니다.", type=["pdf", "txt", "py", "md", "csv", "json"], key=chat.fileId)
     
@@ -435,12 +473,29 @@ if clear_button or "messages" not in st.session_state:
     chat.clear_chat_history()
 
 file_name = ""
+file_bytes = None
+
+if pasted_image is not None and clear_button==False:
+    buf = io.BytesIO()
+    pasted_image.save(buf, format="PNG")
+    file_bytes = buf.getvalue()
+    file_name = "pasted_screenshot.png"
+    logger.info(f"pasted image: {file_name}, size={len(file_bytes)} bytes")
+
+    if mode == '이미지 분석':
+        st.image(pasted_image, caption="붙여넣은 이미지 미리보기", use_container_width=True)
+
 if uploaded_file is not None and clear_button==False:
     logger.info(f"uploaded_file.name: {uploaded_file.name}")
     if uploaded_file.name:
         logger.info(f"csv type? {uploaded_file.name.lower().endswith(('.csv'))}")
 
-    if uploaded_file.name:
+    if uploaded_file and clear_button==False and mode == '이미지 분석':
+        st.image(uploaded_file, caption="이미지 미리보기", use_container_width=True)
+        file_name = uploaded_file.name
+        file_bytes = uploaded_file.getvalue()
+
+    elif uploaded_file.name:
         chat.initiate()
 
         if debugMode=='Enable':
@@ -500,6 +555,20 @@ if prompt := st.chat_input("메시지를 입력하세요."):
                         
             logger.info(f"response: {response}")
             chat.save_chat_history(prompt, response)
+
+        elif mode == '이미지 분석':
+            if file_bytes is None:
+                st.error("이미지를 먼저 업로드하거나 클립보드에서 붙여넣으세요.")
+                st.stop()
+            else:
+                if modelName == "Claude 3.5 Haiku":
+                    st.error("Claude 3.5 Haiku은 이미지를 지원하지 않습니다. 다른 모델을 선택해주세요.")
+                else:
+                    with st.status("thinking...", expanded=True, state="running") as status:
+                        response = chat.summarize_image(file_bytes, prompt, st)
+                        st.write(response)
+
+                        st.session_state.messages.append({"role": "assistant", "content": response})
 
         elif mode == 'Agent':
             with st.status("thinking...", expanded=True, state="running") as status:

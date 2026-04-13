@@ -27,3 +27,5 @@ reportlab
 strands-agents 
 strands-agents-tools
 pyyaml
+streamlit-paste-button
+Pillow
