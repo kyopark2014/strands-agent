@@ -349,7 +349,6 @@ def get_chat(extended_thinking):
 
         parameters = {
             "max_tokens":maxReasoningOutputTokens,
-            "temperature":1,            
             "thinking": {
                 "type": "enabled",
                 "budget_tokens": thinking_budget
@@ -359,8 +358,6 @@ def get_chat(extended_thinking):
     else:
         parameters = {
             "max_tokens":maxOutputTokens,     
-            "temperature":0.1,
-            "top_k":250,
             "stop_sequences": [STOP_SEQUENCE]
         }
 
