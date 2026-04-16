@@ -299,7 +299,7 @@ def isKorean(text):
     
 def get_chat(extended_thinking):
     if model_type == 'claude':
-        maxOutputTokens = get_max_output_tokens()
+        maxOutputTokens = get_max_output_tokens(model_id)
     else:
         maxOutputTokens = 5120
     
@@ -565,12 +565,8 @@ s3_prefix = 'docs'
 s3_image_prefix = 'images'
 
 s3_bucket = config["s3_bucket"] if "s3_bucket" in config else None
-if s3_bucket is None:
-    raise Exception ("No storage!")
 
 path = config["sharing_url"] if "sharing_url" in config else None
-if path is None:
-    raise Exception ("No Sharing URL")
 
 def upload_to_s3(file_bytes, file_name):
     """

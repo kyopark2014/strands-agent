@@ -116,10 +116,10 @@ def load_config(mcp_type):
             }
         }        
 
-    elif mcp_type == "use_aws":
+    elif mcp_type == "use-aws":
         return {
             "mcpServers": {
-                "use_aws": {
+                "use-aws": {
                     "command": "python",
                     "args": [
                         f"{workingDir}/mcp_server_use_aws.py"
