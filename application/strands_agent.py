@@ -22,6 +22,7 @@ from mcp.client.streamable_http import streamable_http_client
 from botocore.config import Config
 from dataclasses import dataclass
 from strands import Agent, tool
+from urllib import parse
 
 logging.basicConfig(
     level=logging.INFO,  # Default to INFO level
