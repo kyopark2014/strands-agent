@@ -18,7 +18,7 @@ from strands_tools import current_time, file_read, file_write
 from strands.agent.conversation_manager import SlidingWindowConversationManager
 from strands.tools.mcp import MCPClient
 from mcp import stdio_client, StdioServerParameters
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
 from botocore.config import Config
 from dataclasses import dataclass
 from strands import Agent, tool
@@ -745,7 +745,7 @@ class MCPClientManager:
             try:
                 if "transport" in config and config["transport"] == "streamable_http":
                     try:
-                        self.clients[name] = MCPClient(lambda: streamablehttp_client(
+                        self.clients[name] = MCPClient(lambda: streamable_http_client(
                             url=config["url"], 
                             headers=config["headers"]
                         ))
