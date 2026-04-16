@@ -17,9 +17,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-async def show_result(graph_result, containers):
+async def show_result(graph_result, notification_queue):
     """Batch processing for GraphResult object"""
-    queue = containers['queue']
+    queue = notification_queue
     result = ""
     
     # Debug: Log the GraphResult object structure
@@ -91,8 +91,8 @@ def get_tool_list(tools):
     return tool_list
 
 debug_mode = 'Enable'
-async def show_streams(agent_stream, containers):
-    queue = containers['queue']
+async def show_streams(agent_stream, notification_queue):
+    queue = notification_queue
     tool_name = ""
     result = ""
     current_response = ""
@@ -159,8 +159,8 @@ async def show_streams(agent_stream, containers):
     logger.info(f"show_streams result type: {type(result)}")
     return result
 
-async def run_plan_and_execute(question, containers):
-    queue = containers['queue']
+async def run_plan_and_execute(question, notification_queue):
+    queue = notification_queue
     queue.reset()
 
     tool = "tavily-search"
@@ -220,14 +220,14 @@ async def run_plan_and_execute(question, containers):
 
         result = executor(question)
         
-        if containers is not None:
+        if notification_queue is not None:
             queue.result(result)
 
     return result
 
 # currently cyclic graph is not supported (Sep. 10 2025)
-async def run_plan_and_execute_with_graph(question, containers):
-    queue = containers['queue']
+async def run_plan_and_execute_with_graph(question, notification_queue):
+    queue = notification_queue
     queue.reset()
 
     tool = "tavily-search"
@@ -353,10 +353,10 @@ async def run_plan_and_execute_with_graph(question, containers):
         graph = builder.build()
 
         result = await graph.invoke_async(question)
-        final_result = await show_result(result, containers)
+        final_result = await show_result(result, notification_queue)
         logger.info(f"final_result: {final_result}")
 
-        if containers is not None:
+        if notification_queue is not None:
             queue.result(final_result)
 
     return final_result

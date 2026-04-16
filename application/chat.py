@@ -675,21 +675,21 @@ def upload_to_s3_artifacts(file_bytes, file_name):
         logger.info(f"{err_msg}")
         return None
 
-def add_notification(containers, message):
-    if containers is not None:
-        containers['queue'].notify(message)
+def add_notification(notification_queue, message):
+    if notification_queue is not None:
+        notification_queue.notify(message)
 
-def update_streaming_result(containers, message):
-    if containers is not None:
-        containers['queue'].stream(message)
+def update_streaming_result(notification_queue, message):
+    if notification_queue is not None:
+        notification_queue.stream(message)
 
-def update_tool_notification(containers, tool_use_id, message):
-    if containers is not None:
-        containers['queue'].tool_update(tool_use_id, message)
+def update_tool_notification(notification_queue, tool_use_id, message):
+    if notification_queue is not None:
+        notification_queue.tool_update(tool_use_id, message)
 
-def update_rag_result(containers, message):
-    if containers is not None:
-        containers['queue'].stream(message)
+def update_rag_result(notification_queue, message):
+    if notification_queue is not None:
+        notification_queue.stream(message)
 
 ####################### boto3 #######################
 # General Conversation
@@ -1090,7 +1090,7 @@ def run_rag_with_knowledge_base(query, st):
     
     return msg
 
-def run_rag_using_retrieve_and_generate(query, containers):
+def run_rag_using_retrieve_and_generate(query, notification_queue):
     msg = None
 
     global reference_docs, contentList
@@ -1099,7 +1099,7 @@ def run_rag_using_retrieve_and_generate(query, containers):
 
     # retrieve
     if debug_mode == "Enable":
-        add_notification(containers, f"RAG 검색을 수행합니다. 검색어: {query}")  
+        add_notification(notification_queue, f"RAG 검색을 수행합니다. 검색어: {query}")  
 
     bedrock_agent_runtime_client = boto3.client(
         "bedrock-agent-runtime",
@@ -1132,7 +1132,7 @@ def run_rag_using_retrieve_and_generate(query, containers):
             logger.info(f"text: {text}")
             msg += text
 
-            update_rag_result(containers, msg)
+            update_rag_result(notification_queue, msg)
 
         if "citation" in event:
             citation = event['citation']
@@ -1171,7 +1171,7 @@ def run_rag_using_retrieve_and_generate(query, containers):
                 # duplicate check and add to reference_docs
                 if reference_doc not in reference_docs:
                     reference_docs.append(reference_doc)
-                    # add_notification(containers, f"{content_text}\n\n{url}")
+                    # add_notification(notification_queue, f"{content_text}\n\n{url}")
 
     if reference_docs:
         ref = "\n\n### Reference\n"
@@ -1181,7 +1181,7 @@ def run_rag_using_retrieve_and_generate(query, containers):
         logger.info(f"ref: {ref}")
         msg += ref
 
-    update_rag_result(containers, msg)
+    update_rag_result(notification_queue, msg)
 
     return msg
 

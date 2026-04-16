@@ -545,7 +545,7 @@ if prompt := st.chat_input("메시지를 입력하세요."):
             #     "notification": [st.empty() for _ in range(1000)],
             #     "message": st.empty()
             # }
-            # response = chat.run_rag_using_retrieve_and_generate(prompt, containers)
+            # response = chat.run_rag_using_retrieve_and_generate(prompt, notification_queue)
                         
             logger.info(f"response: {response}")
             chat.save_chat_history(prompt, response)
@@ -566,42 +566,27 @@ if prompt := st.chat_input("메시지를 입력하세요."):
 
         elif mode == 'Agent':
             with st.status("thinking...", expanded=True, state="running") as status:
-                containers = {
-                    "tools": st.empty(),
-                    "status": st.empty(),
-                    "queue": NotificationQueue(container=status),
-                    "key": st.empty()
-                }
+                notification_queue = NotificationQueue(container=status)
 
                 response, image_urls = asyncio.run(strands_agent.run_strands_agent(
                     query=prompt, 
                     strands_tools=selected_strands_tools, 
                     mcp_servers=selected_mcp_servers, 
                     plugin_name="base",
-                    containers=containers))
+                    notification_queue=notification_queue))
 
         elif mode == 'Strands Supervisor':
             with st.status("thinking...", expanded=True, state="running") as status:
-                containers = {
-                    "tools": st.empty(),
-                    "status": st.empty(),
-                    "queue": NotificationQueue(container=status),
-                    "key": st.empty()
-                }
+                notification_queue = NotificationQueue(container=status)
                 
-                response = asyncio.run(strands_supervisor.run_agent(prompt, containers))
+                response = asyncio.run(strands_supervisor.run_agent(prompt, notification_queue))
 
         elif mode == 'Strands Swarm':
             with st.status("thinking...", expanded=True, state="running") as status:
-                containers = {
-                    "tools": st.empty(),
-                    "status": st.empty(),
-                    "queue": NotificationQueue(container=status),
-                    "key": st.empty()
-                }
+                notification_queue = NotificationQueue(container=status)
                 # if multiRegion == 'Enable':
-                #     response, urls = asyncio.run(strands_swarm.run_swarm_parallel(prompt, selected_strands_tools, selected_mcp_servers, containers))
-                response, urls = asyncio.run(strands_swarm.run_swarm(prompt, selected_strands_tools, selected_mcp_servers, containers))
+                #     response, urls = asyncio.run(strands_swarm.run_swarm_parallel(prompt, selected_strands_tools, selected_mcp_servers, notification_queue))
+                response, urls = asyncio.run(strands_swarm.run_swarm(prompt, selected_strands_tools, selected_mcp_servers, notification_queue))
 
             if urls:
                 with st.expander(f"최종 결과"):
@@ -610,86 +595,46 @@ if prompt := st.chat_input("메시지를 입력하세요."):
 
         elif mode == 'Strands Swarm Tool':
             with st.status("thinking...", expanded=True, state="running") as status:
-                containers = {
-                    "tools": st.empty(),
-                    "status": st.empty(),
-                    "queue": NotificationQueue(container=status),
-                    "key": st.empty()
-                }
-                response = asyncio.run(strands_swarm_tool.run_swarm_tool(prompt, containers))
+                notification_queue = NotificationQueue(container=status)
+                response = asyncio.run(strands_swarm_tool.run_swarm_tool(prompt, notification_queue))
             
         elif mode == 'Strands Code Swarm':
             with st.status("thinking...", expanded=True, state="running") as status:
-                containers = {
-                    "tools": st.empty(),
-                    "status": st.empty(),
-                    "queue": NotificationQueue(container=status),
-                    "key": st.empty()
-                }
-                response = asyncio.run(strands_code_swarm.run_code_swarm(prompt, containers))
+                notification_queue = NotificationQueue(container=status)
+                response = asyncio.run(strands_code_swarm.run_code_swarm(prompt, notification_queue))
 
         elif mode == 'Strands Workflow':
             with st.status("thinking...", expanded=True, state="running") as status:
-                containers = {
-                    "tools": st.empty(),
-                    "status": st.empty(),
-                    "queue": NotificationQueue(container=status),
-                    "key": st.empty()
-                }
-            #response = asyncio.run(strands_workflow.run_workflow_tool(prompt, containers)) # workflow tool
-            response = asyncio.run(strands_workflow.run_workflow(prompt, containers)) # agetic workflow
+                notification_queue = NotificationQueue(container=status)
+                #response = asyncio.run(strands_workflow.run_workflow_tool(prompt, notification_queue)) # workflow tool
+                response = asyncio.run(strands_workflow.run_workflow(prompt, notification_queue)) # agetic workflow
 
         elif mode == 'Strands Graph':
             with st.status("thinking...", expanded=True, state="running") as status:
-                containers = {
-                    "tools": st.empty(),
-                    "status": st.empty(),
-                    "queue": NotificationQueue(container=status),
-                    "key": st.empty()
-                }
-                response = asyncio.run(strands_graph.run_graph(prompt, containers))
+                notification_queue = NotificationQueue(container=status)
+                response = asyncio.run(strands_graph.run_graph(prompt, notification_queue))
 
         elif mode == 'Strands Graph Builder':
             with st.status("thinking...", expanded=True, state="running") as status:
-                containers = {
-                    "tools": st.empty(),
-                    "status": st.empty(),
-                    "queue": NotificationQueue(container=status),
-                    "key": st.empty()
-                }
-            response = asyncio.run(strands_graph_builder.run_graph_builder(prompt, containers))
+                notification_queue = NotificationQueue(container=status)
+                response = asyncio.run(strands_graph_builder.run_graph_builder(prompt, notification_queue))
         
         elif mode == 'Strands Plan and Execute':
             with st.status("thinking...", expanded=True, state="running") as status:
-                containers = {
-                    "tools": st.empty(),
-                    "status": st.empty(),
-                    "queue": NotificationQueue(container=status),
-                    "key": st.empty()
-                }
-            response = asyncio.run(strands_plan_and_execute.run_plan_and_execute_with_graph(prompt, containers))
+                notification_queue = NotificationQueue(container=status)
+                response = asyncio.run(strands_plan_and_execute.run_plan_and_execute_with_graph(prompt, notification_queue))
 
         elif mode == 'Strands Graph With Loop':
             with st.status("thinking...", expanded=True, state="running") as status:
-                containers = {
-                    "tools": st.empty(),
-                    "status": st.empty(),
-                    "queue": NotificationQueue(container=status),
-                    "key": st.empty()
-                }
-            response = asyncio.run(strands_graph_with_loop.run_graph_with_loop(prompt, containers))
+                notification_queue = NotificationQueue(container=status)
+                response = asyncio.run(strands_graph_with_loop.run_graph_with_loop(prompt, notification_queue))
 
         else:
             for plugin in plugin_list:
                 if mode == plugin["name"]:
                     with st.status("thinking...", expanded=True, state="running") as status:
-                        containers = {
-                            "tools": st.empty(),
-                            "status": st.empty(),
-                            "queue": NotificationQueue(container=status),
-                            "key": st.empty()
-                        }
-                    response, image_urls = asyncio.run(plugin_agent.run_plugin_agent(prompt, selected_strands_tools, selected_mcp_servers, plugin["name"], containers))
+                        notification_queue = NotificationQueue(container=status)
+                        response, image_urls = asyncio.run(plugin_agent.run_plugin_agent(prompt, selected_strands_tools, selected_mcp_servers, plugin["name"], notification_queue))
 
         if chat.debug_mode == 'Disable':
            st.markdown(response)

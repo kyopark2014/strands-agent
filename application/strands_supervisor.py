@@ -40,8 +40,8 @@ def get_status_msg(status):
 
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
-async def show_streams(agent_stream, containers):
-    queue = containers['queue']
+async def show_streams(agent_stream, notification_queue):
+    queue = notification_queue
     tool_name = ""
     result = ""
     current_response = ""
@@ -70,7 +70,7 @@ async def show_streams(agent_stream, containers):
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                     if chat.debug_mode == 'Enable':       
                         queue.notify(f"tool name: {tool_name}, arg: {input}")
-                        containers['status'].info(get_status_msg(f"{tool_name}"))
+                        notification_queue.notify(get_status_msg(f"{tool_name}"))
             
                 if "toolResult" in content:
                     tool_result = content["toolResult"]
@@ -126,15 +126,15 @@ def isKorean(text):
         return False
 
 # supervisor agent
-async def run_agent(question, containers):
+async def run_agent(question, notification_queue):
     global status_msg
     status_msg = []
 
-    queue = containers['queue']
+    queue = notification_queue
     queue.reset()
 
     if chat.debug_mode == 'Enable':
-        containers['status'].info(get_status_msg(f"(start"))    
+        notification_queue.notify(get_status_msg(f"(start"))    
 
     @tool
     async def research_assistant(query: str) -> str:
@@ -183,7 +183,7 @@ async def run_agent(question, containers):
                 )
 
                 agent_stream = research_agent.stream_async(query)
-                result = await show_streams(agent_stream, containers)
+                result = await show_streams(agent_stream, notification_queue)
                 logger.info(f"result of research_assistant: {result}")
 
             return result
@@ -224,7 +224,7 @@ async def run_agent(question, containers):
             )
 
             agent_stream = product_agent.stream_async(query)
-            result = await show_streams(agent_stream, containers)
+            result = await show_streams(agent_stream, notification_queue)
             logger.info(f"result of research_assistant: {result}")
 
             return result
@@ -265,7 +265,7 @@ async def run_agent(question, containers):
             )
             
             agent_stream = travel_agent.stream_async(query)
-            result = await show_streams(agent_stream, containers)
+            result = await show_streams(agent_stream, notification_queue)
             logger.info(f"result of research_assistant: {result}")
 
             return result
@@ -306,9 +306,9 @@ async def run_agent(question, containers):
     orchestrator.messages = []
 
     agent_stream = orchestrator.stream_async(question)
-    result = await show_streams(agent_stream, containers)
+    result = await show_streams(agent_stream, notification_queue)
     
     if chat.debug_mode == 'Enable':
-        containers['status'].info(get_status_msg(f"end)"))
+        notification_queue.notify(get_status_msg(f"end)"))
 
     return result

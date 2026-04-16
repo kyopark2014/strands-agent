@@ -17,9 +17,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-async def show_streams(agent_stream, containers):
+async def show_streams(agent_stream, notification_queue):
     """streaming event handling"""
-    queue = containers['queue']
+    queue = notification_queue
     result = ""
     current = ""
     
@@ -79,8 +79,8 @@ async def show_streams(agent_stream, containers):
     
     return result
 
-async def run_code_swarm(question, containers):
-    queue = containers['queue']
+async def run_code_swarm(question, notification_queue):
+    queue = notification_queue
     queue.reset()
 
     # swarm tool
@@ -173,7 +173,7 @@ async def run_code_swarm(question, containers):
         else:
             logger.info(f"event: {event}")
 
-    if containers is not None:
+    if notification_queue is not None:
         queue.result(final_result)
 
     logger.info(f"Final result: {final_result}")

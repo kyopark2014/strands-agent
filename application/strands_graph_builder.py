@@ -14,9 +14,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("strands-agent")
 
-async def show_result(graph_result, containers):
+async def show_result(graph_result, notification_queue):
     """Batch processing for GraphResult object"""
-    queue = containers['queue']
+    queue = notification_queue
     result = ""
     
     # Debug: Log the GraphResult object structure
@@ -59,8 +59,8 @@ async def show_result(graph_result, containers):
     
     return result
 
-async def run_graph_builder(question, containers):
-    queue = containers['queue']
+async def run_graph_builder(question, notification_queue):
+    queue = notification_queue
     queue.reset()
 
     # Create specialized agents
@@ -117,10 +117,10 @@ async def run_graph_builder(question, containers):
     # Execute task on newly built graph
     result = graph(question) 
 
-    final_result = await show_result(result, containers)
+    final_result = await show_result(result, notification_queue)
     logger.info(f"final_result: {final_result}")
 
-    if containers is not None:
+    if notification_queue is not None:
         queue.result(final_result)
 
     logger.info(f"Final result: {final_result}")

@@ -24,12 +24,12 @@ selected_strands_tools = []
 selected_mcp_servers = []
 active_plugin = None
 
-async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: list[str], plugin_name: Optional[str], containers: dict):
+async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: list[str], plugin_name: Optional[str], notification_queue):
     """Run the plugin agent with streaming and tool notifications."""    
 
     global selected_strands_tools, selected_mcp_servers, active_plugin
 
-    queue = containers['queue']
+    queue = notification_queue
     queue.reset()
 
     image_url = []
@@ -142,7 +142,7 @@ async def run_plugin_agent(query: str, strands_tools: list[str], mcp_servers: li
                 ref += f"{i+1}. [{reference['title']}]({reference['url']}), {content}...\n"
             final_result += ref
 
-        if containers is not None:
+        if notification_queue is not None:
             queue.result(final_result)
 
     return final_result, image_url

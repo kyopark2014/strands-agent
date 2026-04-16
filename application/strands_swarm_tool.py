@@ -34,8 +34,8 @@ def get_status_msg(status):
 
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
-async def show_streams(agent_stream, containers):
-    queue = containers['queue']
+async def show_streams(agent_stream, notification_queue):
+    queue = notification_queue
     tool_name = ""
     result = ""
     current_response = ""
@@ -64,7 +64,7 @@ async def show_streams(agent_stream, containers):
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                     if chat.debug_mode == 'Enable':       
                         queue.notify(f"tool name: {tool_name}, arg: {input}")
-                        containers['status'].info(get_status_msg(f"{tool_name}"))
+                        notification_queue.notify(get_status_msg(f"{tool_name}"))
             
                 if "toolResult" in content:
                     tool_result = content["toolResult"]
@@ -87,11 +87,11 @@ async def show_streams(agent_stream, containers):
     
     return result
 
-async def run_swarm_tool(question, containers):
+async def run_swarm_tool(question, notification_queue):
     global status_msg
     status_msg = []
 
-    queue = containers['queue']
+    queue = notification_queue
     queue.reset()
 
     system_prompt = (

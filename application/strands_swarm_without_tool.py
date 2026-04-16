@@ -38,8 +38,8 @@ def get_status_msg(status):
 
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
-def initiate_report(question, containers):
-    queue = containers['queue']
+def initiate_report(question, notification_queue):
+    queue = notification_queue
     # request id
     request_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
     template = open(os.path.join(os.path.dirname(__file__), f"swarm_report.html")).read()
@@ -124,8 +124,8 @@ async def create_final_report(request_id, question, body, report_url):
     
     return urls
 
-async def show_streams(agent_stream, containers):
-    queue = containers['queue']
+async def show_streams(agent_stream, notification_queue):
+    queue = notification_queue
     tool_name = ""
     result = ""
     current_response = ""
@@ -154,7 +154,7 @@ async def show_streams(agent_stream, containers):
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                     if chat.debug_mode == 'Enable':       
                         queue.notify(f"tool name: {tool_name}, arg: {input}")
-                        containers['status'].info(get_status_msg(f"{tool_name}"))
+                        notification_queue.notify(get_status_msg(f"{tool_name}"))
             
                 if "toolResult" in content:
                     tool_result = content["toolResult"]
@@ -187,17 +187,17 @@ def isKorean(text):
         return False
     
 # swarm agent
-async def run_swarm(question, containers):    
+async def run_swarm(question, notification_queue):    
     global status_msg
     status_msg = []
 
-    queue = containers['queue']
+    queue = notification_queue
     queue.reset()
 
     if chat.debug_mode == 'Enable':
-        containers['status'].info(get_status_msg(f"(start"))    
+        notification_queue.notify(get_status_msg(f"(start"))    
 
-    request_id, report_url = initiate_report(question, containers)
+    request_id, report_url = initiate_report(question, notification_queue)
 
     # Create specialized agents with different expertise
     # research agent
@@ -291,18 +291,18 @@ async def run_swarm(question, containers):
     queue.notify(f"Phase 1: Initial analysis by each specialized agent")
     queue.notify(f"research agent")
     result = research_agent.stream_async(question)
-    research_result = await show_streams(result, containers)
+    research_result = await show_streams(result, notification_queue)
     logger.info(f"research_result: {research_result}")
     update_report("research", request_id, research_result)
     
     queue.notify(f"creative agent")
     result = creative_agent.stream_async(question)
-    creative_result = await show_streams(result, containers)
+    creative_result = await show_streams(result, notification_queue)
     update_report("creative", request_id, creative_result)
 
     queue.notify(f"critical agent")
     result = critical_agent.stream_async(question)
-    critical_result = await show_streams(result, containers)
+    critical_result = await show_streams(result, notification_queue)
     update_report("critical", request_id, critical_result)
 
     # Share results with all other agents (mesh communication)    
@@ -327,18 +327,18 @@ async def run_swarm(question, containers):
     queue.notify(f"Phase 2: Each agent refines based on input from others")
     queue.notify(f"refined research agent")
     result = research_agent.stream_async(next_research_message)
-    refined_research = await show_streams(result, containers)
+    refined_research = await show_streams(result, notification_queue)
     logger.info(f"refined_research: {refined_research}")
     update_report("research", request_id, refined_research)
 
     queue.notify(f"refined creative agent")
     result = creative_agent.stream_async(next_creative_message)
-    refined_creative = await show_streams(result, containers)
+    refined_creative = await show_streams(result, notification_queue)
     update_report("creative", request_id, refined_creative)
 
     queue.notify(f"refined critical agent")
     result = critical_agent.stream_async(next_critical_message)
-    refined_critical = await show_streams(result, containers)
+    refined_critical = await show_streams(result, notification_queue)
     update_report("critical", request_id, refined_critical)
 
     # Share refined results with summarizer
@@ -362,7 +362,7 @@ creative ideas, and addresses the critical feedback.
 
     queue.notify(f"summarizer agent")
     result = summarizer_agent.stream_async(next_summarizer_message)
-    final_solution = await show_streams(result, containers)
+    final_solution = await show_streams(result, notification_queue)
     logger.info(f"final_solution: {final_solution}")
     update_report("summarizer", request_id, final_solution)
 
@@ -370,6 +370,6 @@ creative ideas, and addresses the critical feedback.
     logger.info(f"urls: {urls}")
 
     if chat.debug_mode == 'Enable':
-        containers['status'].info(get_status_msg(f"end)"))
+        notification_queue.notify(get_status_msg(f"end)"))
 
     return final_solution, urls

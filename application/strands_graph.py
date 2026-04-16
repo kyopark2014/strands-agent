@@ -34,8 +34,8 @@ def get_status_msg(status):
 
 os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
-async def show_streams(agent_stream, containers):
-    queue = containers['queue']
+async def show_streams(agent_stream, notification_queue):
+    queue = notification_queue
     tool_name = ""
     result = ""
     current_response = ""
@@ -64,7 +64,7 @@ async def show_streams(agent_stream, containers):
                     logger.info(f"tool_nmae: {tool_name}, arg: {input}")
                     if chat.debug_mode == 'Enable':       
                         queue.notify(f"tool name: {tool_name}, arg: {input}")
-                        containers['status'].info(get_status_msg(f"{tool_name}"))
+                        notification_queue.notify(get_status_msg(f"{tool_name}"))
             
                 if "toolResult" in content:
                     tool_result = content["toolResult"]
@@ -112,15 +112,15 @@ def isKorean(text):
     else:
         return False
 
-async def run_graph(question, containers):
+async def run_graph(question, notification_queue):
     global status_msg
     status_msg = []
 
-    queue = containers['queue']
+    queue = notification_queue
     queue.reset()
 
     if chat.debug_mode == 'Enable':
-        containers['status'].info(get_status_msg(f"(start"))    
+        notification_queue.notify(get_status_msg(f"(start"))    
 
     # Level 3 - Specialized Analysis Agents
     @tool
@@ -134,7 +134,7 @@ async def run_graph(question, containers):
 
         queue.notify(f"market_research: {query}")
         agent_stream = market_agent.stream_async(query)
-        result = await show_streams(agent_stream, containers)
+        result = await show_streams(agent_stream, notification_queue)
         logger.info(f"market_research completed, result: {result}")
         logger.info(f"market_research result type: {type(result)}")
         return result
@@ -160,7 +160,7 @@ async def run_graph(question, containers):
 
         queue.notify(f"financial_analysis: {query}")
         agent_stream = financial_agent.stream_async(query)
-        result = await show_streams(agent_stream, containers)
+        result = await show_streams(agent_stream, notification_queue)
         logger.info(f"financial_analysis completed, result: {result}")
         logger.info(f"financial_analysis result type: {type(result)}")
 
@@ -188,7 +188,7 @@ async def run_graph(question, containers):
 
         queue.notify(f"technical_analysis: {query}")
         agent_stream = tech_agent.stream_async(query)
-        result = await show_streams(agent_stream, containers)
+        result = await show_streams(agent_stream, notification_queue)
         logger.info(f"technical_analysis completed, result: {result}")
         logger.info(f"technical_analysis result type: {type(result)}")
 
@@ -217,7 +217,7 @@ async def run_graph(question, containers):
 
         queue.notify(f"social_analysis: {query}")
         agent_stream = social_agent.stream_async(query)
-        result = await show_streams(agent_stream, containers)
+        result = await show_streams(agent_stream, notification_queue)
         logger.info(f"social_analysis completed, result: {result}")
         logger.info(f"social_analysis result type: {type(result)}")
 
@@ -254,7 +254,7 @@ async def run_graph(question, containers):
 
         queue.notify(f"economic_department: {query}")
         agent_stream = econ_manager.stream_async(query)
-        result = await show_streams(agent_stream, containers)
+        result = await show_streams(agent_stream, notification_queue)
         logger.info(f"economic_department completed, result: {result}")
         logger.info(f"economic_department result type: {type(result)}")
 
@@ -292,10 +292,10 @@ async def run_graph(question, containers):
 
     queue.notify(f"질문: {question}")
     agent_stream = coordinator.stream_async(f"Provide a comprehensive analysis of: {question}")
-    result = await show_streams(agent_stream, containers)
+    result = await show_streams(agent_stream, notification_queue)
     logger.info(f"coordinator result: {result}")
 
     if chat.debug_mode == 'Enable':
-        containers['status'].info(get_status_msg(f"end)"))
+        notification_queue.notify(get_status_msg(f"end)"))
 
     return result
