@@ -734,7 +734,7 @@ def general_conversation(query):
     
     # Set model parameters
     if model_type == 'claude':
-        maxOutputTokens = get_max_output_tokens()
+        maxOutputTokens = get_max_output_tokens(model_id)
         STOP_SEQUENCE = "\n\nHuman:"
     else:
         maxOutputTokens = 5120
@@ -981,7 +981,7 @@ def run_rag_with_knowledge_base(query, st):
     
     # Set model parameters
     if model_type == 'claude':
-        maxOutputTokens = get_max_output_tokens()
+        maxOutputTokens = get_max_output_tokens(model_id)
         STOP_SEQUENCE = "\n\nHuman:"
     else:
         maxOutputTokens = 5120
