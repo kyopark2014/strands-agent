@@ -638,7 +638,7 @@ def get_model():
         STOP_SEQUENCE = "" 
 
     if chat.model_type == 'claude':
-        maxOutputTokens = chat.get_max_output_tokens()
+        maxOutputTokens = chat.get_max_output_tokens(chat.model_id)
     else:
         maxOutputTokens = 5120
 
