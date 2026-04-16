@@ -27,24 +27,29 @@ config_path = os.path.join(workingDir, "config.json")
 
 def load_config():
     config = None
-        
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
     
-        projectName = "strands"
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading config: {e}")
+        config = {}
+        
+        project_name = "strands"
+
         session = boto3.Session()
         region = session.region_name
+
+        sts_client = boto3.client("sts", region_name=region)
+        account_id = sts_client.get_caller_identity()["Account"]
+
+        config['projectName'] = project_name
+        config['accountId'] = account_id
         config['region'] = region
-        config['projectName'] = projectName
-        
-        sts = boto3.client("sts")
-        response = sts.get_caller_identity()
-        accountId = response["Account"]
-        config['accountId'] = accountId
-        config['s3_bucket'] = f'storage-for-{projectName}-{accountId}-{region}'
-        
+
         with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)    
+            json.dump(config, f, indent=2)
+    
     return config
 
 config = load_config()

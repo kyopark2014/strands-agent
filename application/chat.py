@@ -94,11 +94,16 @@ aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
 aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
 aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
 
-def get_max_output_tokens(mid: str = "") -> int:
+def get_max_output_tokens(model_id: str = "") -> int:
     """Return the max output tokens based on the model ID."""
-    mid = mid or model_id
-    if "claude-4" in mid or "claude-sonnet-4" in mid or "claude-opus-4" in mid or "claude-haiku-4" in mid:
-        return 16384
+    if "claude-opus-4-6" in model_id:
+        return 128000
+    if "claude-opus-4-5" in model_id:
+        return 64000
+    if "claude-opus-4" in model_id or "claude-4-opus" in model_id:
+        return 32000
+    if "claude-sonnet-4" in model_id or "claude-4-sonnet" in model_id or "claude-haiku-4" in model_id:
+        return 64000
     return 8192
 
 def update(modelName, reasoningMode, debugMode, skillMode):    

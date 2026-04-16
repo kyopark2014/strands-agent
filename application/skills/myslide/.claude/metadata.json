@@ -1,0 +1,14 @@
+{
+  "name": "myslide",
+  "description": "Create professional AWS-themed PPTX presentations with dark gradient backgrounds, SVG architecture diagrams, and conversational slide editing. Uses AWS reInvent design system (Amazon Ember fonts, orange/magenta/purple palette, content card patterns).",
+  "version": "1.0.0",
+  "author": "jesamkim",
+  "license": "MIT License",
+  "skills": [
+    {
+      "name": "myslide",
+      "description": "AWS-themed PPTX presentation creator with dark gradient backgrounds, SVG diagrams, content card layouts, and conversational editing. Trigger on: AWS presentation, AWS slides, myslide, AWS themed deck, make slides, create presentation",
+      "path": "SKILL.md"
+    }
+  ]
+}
