@@ -59,6 +59,8 @@ config_path = os.path.join(workingDir, "config.json")
 
 config = utils.load_config()
 
+os.environ["BYPASS_TOOL_CONSENT"] = "true"
+
 bedrock_region = config.get("region", "us-west-2")
 projectName = config.get("projectName", "strands")
 accountId = config.get("accountId", None)
