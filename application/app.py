@@ -400,8 +400,6 @@ with st.sidebar:
 
         st.markdown("**또는** 화면 캡처를 붙여넣으세요:")
         pasted_image = safe_paste_button("📋 클립보드에서 붙여넣기", key="paste_image")
-        if pasted_image:
-            st.image(pasted_image, caption="붙여넣은 이미지", use_container_width=True)
 
     elif mode=="RAG" or mode=="Agent" or mode=="Agent (Chat)":
         st.subheader("📋 문서 업로드")
@@ -474,8 +472,6 @@ if pasted_image is not None and clear_button==False:
     buf = io.BytesIO()
     pasted_image.save(buf, format="PNG")
     file_bytes = buf.getvalue()
-    file_name = "pasted_screenshot.png"
-    logger.info(f"pasted image: {file_name}, size={len(file_bytes)} bytes")
 
     if mode == '이미지 분석':
         st.image(pasted_image, caption="붙여넣은 이미지 미리보기", use_container_width=True)
