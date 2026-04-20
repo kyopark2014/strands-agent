@@ -8,7 +8,6 @@ import mcp_config
 import asyncio
 import logging
 import sys
-import knowledge_base as kb
 import strands_agent
 import strands_supervisor
 import strands_swarm
@@ -143,7 +142,7 @@ with st.sidebar:
     ]
 
     mcp_selections = {}
-    default_mcp_selections = ["korea_weather", "web_fetch", "tavily"]
+    default_mcp_selections = ["korea_weather", "web_fetch"]
 
     # Default: prevent strands_selections undefined when not in Agent mode
     default_strands_tool_selections = config.get("default_strands_tool_selections") or default_strands_tool_selections
@@ -372,7 +371,7 @@ if uploaded_file is not None and clear_button==False:
         file_url = chat.upload_to_s3(uploaded_file.getvalue(), file_name)
         logger.info(f"file_url: {file_url}")
 
-        kb.sync_data_source()  # sync uploaded files
+        utils.sync_data_source()
             
         status = f'선택한 "{file_name}"의 내용을 요약합니다.'
         if debugMode=='Enable':
