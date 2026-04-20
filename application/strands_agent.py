@@ -6,8 +6,6 @@ import logging
 import sys
 import utils
 import boto3
-import yaml
-import skill
 import subprocess
 
 from contextlib import contextmanager
@@ -20,7 +18,6 @@ from mcp import stdio_client, StdioServerParameters
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
 from botocore.config import Config
-from dataclasses import dataclass
 from urllib import parse
 from strands import Agent, tool
 
@@ -48,118 +45,7 @@ s3_bucket = config.get("s3_bucket")
 sharing_url = config.get("sharing_url")
 
 WORKING_DIR = os.path.dirname(os.path.abspath(__file__))
-SKILLS_DIR = os.path.join(WORKING_DIR, "skills")
 ARTIFACTS_DIR = os.path.join(WORKING_DIR, "artifacts")
-
-
-@dataclass
-class Skill:
-    name: str
-    description: str
-    instructions: str
-    path: str
-
-class SkillManager:
-    """Discovers, loads and selects Agent Skills following the Anthropic spec."""
-
-    def __init__(self, skills_dir: str = SKILLS_DIR):
-        self.skills_dir = skills_dir
-        self.registry: dict[str, Skill] = {}
-        self._discover()
-
-    # ---- discovery & metadata loading ----
-
-    def _discover(self):
-        """Scan skills directory and load metadata (frontmatter only)."""
-        if not os.path.isdir(self.skills_dir):
-            os.makedirs(self.skills_dir, exist_ok=True)
-            logger.info(f"Created skills directory: {self.skills_dir}")
-            return
-
-        for entry in os.listdir(self.skills_dir):
-            skill_md = os.path.join(self.skills_dir, entry, "SKILL.md")
-            if os.path.isfile(skill_md):
-                try:
-                    meta, instructions = self._parse_skill_md(skill_md)
-                    skill = Skill(
-                        name=meta.get("name", entry),
-                        description=meta.get("description", ""),
-                        instructions=instructions,
-                        path=os.path.join(self.skills_dir, entry),
-                    )
-                    self.registry[skill.name] = skill
-                    logger.info(f"Skill discovered: {skill.name}")
-                except Exception as e:
-                    logger.warning(f"Failed to load skill '{entry}': {e}")
-
-    @staticmethod
-    def _parse_skill_md(filepath: str) -> tuple[dict, str]:
-        """Parse YAML frontmatter + markdown body from a SKILL.md file."""
-        with open(filepath, "r", encoding="utf-8") as f:
-            raw = f.read()
-
-        if not raw.startswith("---"):
-            return {}, raw
-
-        parts = raw.split("---", 2)
-        if len(parts) < 3:
-            return {}, raw
-
-        frontmatter = yaml.safe_load(parts[1]) or {}
-        body = parts[2].strip()
-        return frontmatter, body
-
-    # ---- prompt generation (progressive disclosure) ----
-    def available_skills_xml(self) -> str:
-        """Generate <available_skills> XML for the system prompt (metadata only)."""
-        if not self.registry:
-            return ""
-        lines = ["<available_skills>"]
-        for s in self.registry.values():
-            lines.append("  <skill>")
-            lines.append(f"    <name>{s.name}</name>")
-            lines.append(f"    <description>{s.description}</description>")
-            lines.append("  </skill>")
-        lines.append("</available_skills>")
-        return "\n".join(lines)
-
-    def get_skill_instructions(self, name: str) -> Optional[str]:
-        """Return full instructions for a skill (loaded on demand)."""
-        skill = self.registry.get(name)
-        return skill.instructions if skill else None
-
-    def select_skills(self, query: str) -> list[Skill]:
-        """Keyword-based matching to select relevant skills for a query."""
-        query_lower = query.lower()
-        selected = []
-        for skill in self.registry.values():
-            keywords = skill.description.lower().split()
-            if any(kw in query_lower for kw in keywords if len(kw) > 3):
-                selected.append(skill)
-        return selected
-
-    def build_active_skill_prompt(self, skills: list[Skill]) -> str:
-        """Build the full instructions block for activated skills."""
-        if not skills:
-            return ""
-        parts = ["<active_skills>"]
-        for s in skills:
-            parts.append(f'<skill name="{s.name}">')
-            parts.append(s.instructions)
-            parts.append("</skill>")
-        parts.append("</active_skills>")
-        return "\n".join(parts)
-
-# global singleton
-skill_manager = SkillManager()
-
-SKILL_USAGE_GUIDE = (
-    "\n## Skill 사용 가이드\n"
-    "위의 <available_skills>에 나열된 skill이 사용자의 요청과 관련될 때:\n"
-    "1. 먼저 get_skill_instructions 도구로 해당 skill의 상세 지침을 로드하세요.\n"
-    "2. 지침에 포함된 코드 패턴을 execute_code 도구로 실행하세요.\n"
-    "3. skill 지침이 없는 일반 질문은 직접 답변하세요.\n"
-)
 
 BASE_SYSTEM_PROMPT = (
     "당신의 이름은 서연이고, 질문에 친근한 방식으로 대답하도록 설계된 대화형 AI입니다.\n"
@@ -1081,9 +967,12 @@ def update_tools(strands_tools: list, mcp_servers: list):
             
     return tools
 
-def create_agent(tools: list, plugin_name: Optional[str], command: Optional[str] = None):
-    # add skills metadata to system prompt
-    system_prompt = build_system_prompt(plugin_name, command)
+def create_agent(strands_tools: list, mcp_servers: list):
+    init_mcp_clients(mcp_servers)
+
+    tools = update_tools(strands_tools, mcp_servers)
+
+    system_prompt = BASE_SYSTEM_PROMPT
 
     model = get_model()
     
@@ -1108,12 +997,11 @@ def get_tool_list(tools):
             tool_list.append(module_name)
     return tool_list
 
-
+app = None
 selected_strands_tools = []
 selected_mcp_servers = []
-active_plugin = None
 
-async def run_strands_agent(query: str, strands_tools: list[str], mcp_servers: list[str], plugin_name: Optional[str], notification_queue):
+async def run_strands_agent(query: str, strands_tools: list[str], mcp_servers: list[str], notification_queue):
     """Run the strands agent with streaming and tool notifications."""
     queue = notification_queue
     queue.reset()
@@ -1121,24 +1009,15 @@ async def run_strands_agent(query: str, strands_tools: list[str], mcp_servers: l
     image_url = []
     references = []
 
-    global agent, selected_strands_tools, selected_mcp_servers, active_plugin
+    global app, selected_strands_tools, selected_mcp_servers, active_plugin
 
-    if selected_strands_tools != strands_tools or selected_mcp_servers != mcp_servers or active_plugin != plugin_name:        
+    if app is None or selected_strands_tools != strands_tools or selected_mcp_servers != mcp_servers:        
         selected_strands_tools = strands_tools
         selected_mcp_servers = mcp_servers
-        active_plugin = plugin_name
         
         mcp_manager.stop_agent_clients()
         
-        init_mcp_clients(mcp_servers)
-
-        tools = update_tools(strands_tools, mcp_servers)
-
-        if chat.skill_mode == 'Enable':
-            tools.append(get_skill_instructions)
-
-        agent = create_agent(tools, plugin_name)
-        tool_list = get_tool_list(tools)
+        app = create_agent(strands_tools, mcp_servers)
     
         # Start or reuse persistent MCP clients
         mcp_manager.start_agent_clients(mcp_servers)
@@ -1148,7 +1027,7 @@ async def run_strands_agent(query: str, strands_tools: list[str], mcp_servers: l
     # run agent
     final_result = current = ""
     with mcp_manager.get_active_clients(mcp_servers) as _:
-        agent_stream = agent.stream_async(query)
+        agent_stream = app.stream_async(query)
 
         async for event in agent_stream:
             text = ""

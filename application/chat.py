@@ -84,7 +84,6 @@ model_id = "us.anthropic.claude-sonnet-4-6"
 models = info.get_model_info(model_name)
 bedrock_region = "us-west-2"
 reasoning_mode = 'Disable'
-skill_mode = 'Disable'
 
 # Memory related variables
 MSG_LENGTH = 100
@@ -108,8 +107,8 @@ def get_max_output_tokens(model_id: str = "") -> int:
         return 64000
     return 8192
 
-def update(modelName, reasoningMode, debugMode, skillMode):    
-    global model_name, model_id, model_type, reasoning_mode, debug_mode, skill_mode
+def update(modelName, reasoningMode, debugMode):    
+    global model_name, model_id, model_type, reasoning_mode, debug_mode
 
     # load mcp.env    
     mcp_env = utils.load_mcp_env()
@@ -128,11 +127,6 @@ def update(modelName, reasoningMode, debugMode, skillMode):
     if debugMode != debug_mode:
         debug_mode = debugMode
         logger.info(f"debug_mode: {debug_mode}")        
-
-    if skillMode != skill_mode:
-        skill_mode = skillMode
-        logger.info(f"skill_mode: {skill_mode}")
-        mcp_env['skill_mode'] = skill_mode
 
     # update mcp.env    
     mcp_env['user_id'] = user_id
