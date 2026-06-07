@@ -30,56 +30,46 @@ agent = Agent(
 flowchart TB
   subgraph UI["Streamlit (application/app.py)"]
     MODE[대화 형태 선택]
-    TOOLUI["Agent 모드: Strands Tool / MCP 선택"]
+    SKUI["Agent: Strands Tool / MCP 선택"]
     NQ[NotificationQueue]
   end
 
-  subgraph ChatModes["chat.py"]
+  subgraph Chat["chat.py — 기본 모드"]
     GC[general_conversation]
     RAG[run_rag_with_knowledge_base]
     IMG[summarize_image]
   end
 
-  subgraph AgentModes["Strands Agents SDK"]
-    RSA[strands_agent.run_strands_agent]
-    SUP[strands_supervisor.run_agent]
-    SWM[strands_swarm.run_swarm]
-    SWT[strands_swarm_tool.run_swarm_tool]
-    CSW[strands_code_swarm.run_code_swarm]
-    WFL[strands_workflow.run_workflow]
-    GRP[strands_graph.run_graph]
-    GRB[strands_graph_builder.run_graph_builder]
-    PAE[strands_plan_and_execute.run_plan_and_execute_with_graph]
-    GWL[strands_graph_with_loop.run_graph_with_loop]
+  subgraph LLM["Amazon Bedrock"]
+    BR[Bedrock Runtime]
+    KB[Knowledge Base]
   end
 
-  subgraph StrandsCore["strands_agent.py"]
-    CA[create_agent]
+  subgraph Skills["Agent Skills (skill.py)"]
+    SRC["skills/*/SKILL.md"]
+    BSP[build_skill_prompt]
+    GSI[get_skill_instructions]
+  end
+
+  subgraph AgentCore["strands_agent.py — Agent"]
+    RSA[run_strands_agent]
     A[Agent]
     SA[stream_async]
     BM[BedrockModel]
     BT["Built-in: execute_code, bash, upload_file_to_s3"]
     ST["strands_tools: current_time, file_read, file_write"]
-    MCM[MCPClientManager]
+    MCP[MCPClientManager]
   end
 
-  subgraph LLM["Amazon Bedrock"]
-    BR[Bedrock Runtime / Bedrock Agent]
+  subgraph MultiAgent["Multi-agent (strands_*.py)"]
+    MA["Supervisor · Swarm · Workflow · Graph · Plan-and-Execute"]
   end
 
   subgraph MCPServers["MCP Servers (mcp_config.py)"]
-    T[tavily]
-    KB[knowledge base / retrieve]
-    UAWS[use-aws]
-    ADOC[aws_documentation]
-    WF[web_fetch]
-    KW[korea_weather]
-    TI[trade_info]
-    RC[code interpreter]
-    DX[drawio / text_extraction]
-    INT[slack / notion / gog]
-    EMP[AWS Sentral / Outlook]
-    UD[사용자 설정]
+    SEARCH[tavily / knowledge base]
+    AWS[use-aws / aws_documentation]
+    WEB[web_fetch / korea_weather / trade_info]
+    EXT[code interpreter / slack / notion / gog / ...]
   end
 
   subgraph Storage["Artifacts / S3"]
@@ -91,53 +81,55 @@ flowchart TB
   MODE --> RAG
   MODE --> IMG
   MODE --> RSA
-  MODE --> SUP
-  MODE --> SWM
-  MODE --> SWT
-  MODE --> CSW
-  MODE --> WFL
-  MODE --> GRP
-  MODE --> GRB
-  MODE --> PAE
-  MODE --> GWL
-
-  TOOLUI --> RSA
+  MODE --> MA
+  SKUI --> RSA
   NQ --> RSA
-  NQ --> SUP
-  NQ --> SWM
+  NQ --> MA
 
-  RSA --> CA
-  CA --> A
+  GC --> BR
+  RAG --> KB
+  RAG --> BR
+  IMG --> BR
+
+  RSA --> A
+  SKUI -->|skill_list| BSP
   A --> SA
   A --> BM
   BM --> BR
   A --> BT
   A --> ST
-  A --> MCM
-  MCM --> MCPServers
-  GC --> BR
-  RAG --> BR
-  RAG --> KB
-  IMG --> BR
+  A --> MCP
+  A --> GSI
+  BSP -->|system_prompt| A
+  GSI --> SRC
+  MCP --> MCPServers
+  MA --> BR
   BT --> ART
   BT --> S3
 ```
+
+#### 기본 모드
 
 | 모드 | 모듈 | 설명 |
 |------|------|------|
 | 일상적인 대화 | `chat.general_conversation` | 대화 이력 + Bedrock Runtime `invoke_model_with_response_stream` 스트리밍 |
 | RAG | `chat.run_rag_with_knowledge_base` | Bedrock Knowledge Base 검색(`retrieve`) 후 Bedrock Runtime으로 답변 생성 |
-| **Agent** | `strands_agent.run_strands_agent` | Strands SDK + built-in tools + strands_tools + MCP (`NotificationQueue`로 도구 실행 상태 표시) |
-| Strands Supervisor | `strands_supervisor.run_agent` | Supervisor/Collaborator 구조의 Multi-agent |
-| Strands Swarm | `strands_swarm.run_swarm` | Swarm 형태의 Multi-agent Collaboration |
-| Strands Swarm Tool | `strands_swarm_tool.run_swarm_tool` | Agent별 답변 생성 후 summarize하는 Collaborative Mode |
-| Strands Code Swarm | `strands_code_swarm.run_code_swarm` | Multi-agent Collaboration으로 코드 생성 |
+| **Agent** | `strands_agent.run_strands_agent` | Strands SDK + built-in tools + strands_tools + MCP + Skills |
+| 이미지 분석 | `chat.summarize_image` | Bedrock 멀티모달 (이미지 + 텍스트) 분석 |
+
+#### Multi-agent 모드
+
+| 모드 | 모듈 | 설명 |
+|------|------|------|
+| Strands Supervisor | `strands_supervisor.run_agent` | Supervisor/Collaborator 구조 |
+| Strands Swarm | `strands_swarm.run_swarm` | Swarm 형태의 Agent Collaboration |
+| Strands Swarm Tool | `strands_swarm_tool.run_swarm_tool` | Agent별 답변 생성 후 summarize |
+| Strands Code Swarm | `strands_code_swarm.run_code_swarm` | Multi-agent로 코드 생성 |
 | Strands Workflow | `strands_workflow.run_workflow` | Workflow 기반 Multi-agent |
 | Strands Graph | `strands_graph.run_graph` | Graph 기반 Multi-agent |
-| Strands Graph Builder | `strands_graph_builder.run_graph_builder` | Graph Builder 기반 Multi-agent Workflow |
-| Strands Plan and Execute | `strands_plan_and_execute.run_plan_and_execute_with_graph` | Plan and Execute + Graph 기반 Multi-agent |
-| Strands Graph With Loop | `strands_graph_with_loop.run_graph_with_loop` | Loop가 포함된 Graph 기반 Multi-agent |
-| 이미지 분석 | `chat.summarize_image` | Bedrock 멀티모달 (이미지 + 텍스트) 분석 |
+| Strands Graph Builder | `strands_graph_builder.run_graph_builder` | Graph Builder 기반 Workflow |
+| Strands Plan and Execute | `strands_plan_and_execute.run_plan_and_execute_with_graph` | Plan and Execute + Graph |
+| Strands Graph With Loop | `strands_graph_with_loop.run_graph_with_loop` | Loop가 포함된 Graph |
 
 
 ### Streamlit에서 agent의 실행
