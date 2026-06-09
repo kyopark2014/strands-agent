@@ -1083,6 +1083,13 @@ pip install -r requirements.txt
 streamlit run application/app.py
 ```
 
+### 리전별 사용할 수 있는 모델의 확인 방법
+
+사용할 수 있는 모델의 확인 방법은 아래와 같습니다.
+
+```text
+aws bedrock list-foundation-models --region=us-west-2 --by-provider anthropic --query "modelSummaries[*].modelId"
+```
 
 
 ### 실행 결과
