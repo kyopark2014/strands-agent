@@ -1,4 +1,4 @@
-streamlit==1.41.0 
+streamlit>=1.41.0,<2.0.0
 streamlit-chat 
 pandas 
 numpy 
@@ -24,8 +24,8 @@ uv
 kaleido 
 diagrams 
 reportlab
-strands-agents 
-strands-agents-tools
+strands-agents[openai]>=1.44.0
+strands-agents-tools>=0.8.1
 pyyaml
 streamlit-paste-button
 Pillow

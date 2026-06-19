@@ -1,6 +1,7 @@
 import chat
 import os
 import contextlib
+import info
 import mcp_config
 import logging
 import sys
@@ -11,6 +12,8 @@ import subprocess
 from contextlib import contextmanager
 from typing import Dict, List, Optional
 from strands.models import BedrockModel
+from strands.models.openai import OpenAIModel
+from strands.models.openai_responses import OpenAIResponsesModel
 from strands_tools import current_time, file_read, file_write
 from strands.agent.conversation_manager import SlidingWindowConversationManager
 from strands.tools.mcp import MCPClient
@@ -511,8 +514,55 @@ def get_builtin_tools() -> list:
 #########################################################
 # Strands Agent 
 #########################################################
+_MANTLE_BASE_URL = "https://bedrock-mantle.{region}.api.aws/openai/v1"
+_mantle_url_patch_applied = False
+
+
+def _ensure_mantle_base_url_patch() -> None:
+    """Work around missing /openai path in SDK until harness-sdk#2706 lands."""
+    global _mantle_url_patch_applied
+    if _mantle_url_patch_applied:
+        return
+    import strands.models._openai_bedrock as openai_bedrock
+
+    openai_bedrock._MANTLE_BASE_URL_TEMPLATE = _MANTLE_BASE_URL
+    _mantle_url_patch_applied = True
+
+
+def _build_mantle_openai_model(profile: dict, boto_session, max_output_tokens: int):
+    """Route OpenAI-compatible Bedrock models through Bedrock Mantle."""
+    _ensure_mantle_base_url_patch()
+
+    bedrock_region = profile["bedrock_region"]
+    model_id = profile["model_id"]
+    mantle_api = profile.get("mantle_api", "chat")
+    mantle_config = {"region": bedrock_region, "boto_session": boto_session}
+
+    if mantle_api == "responses":
+        return OpenAIResponsesModel(
+            model_id=model_id,
+            bedrock_mantle_config=mantle_config,
+            params={
+                "max_output_tokens": max_output_tokens,
+                "temperature": 0.1,
+            },
+        )
+
+    return OpenAIModel(
+        model_id=model_id,
+        bedrock_mantle_config=mantle_config,
+        params={
+            "max_tokens": max_output_tokens,
+            "temperature": 0.1,
+        },
+    )
+
+
 def get_model():
-    profile = chat.models[0]
+    model_profiles = info.get_model_info(chat.model_name)
+    if not model_profiles:
+        raise RuntimeError(f"No Bedrock profile for model_name={chat.model_name!r}")
+    profile = model_profiles[0]
     bedrock_region = profile["bedrock_region"]
     model_id = profile["model_id"]
     model_type = profile["model_type"]
@@ -581,11 +631,7 @@ def get_model():
             },
         )
     elif model_type == "openai":
-        model = BedrockModel(
-            model=model_id,
-            region=bedrock_region,
-            streaming=True,
-        )
+        model = _build_mantle_openai_model(profile, boto_session, maxOutputTokens)
 
     return model
 
