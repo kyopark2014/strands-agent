@@ -595,6 +595,24 @@ conversation_manager = SlidingWindowConversationManager(
 
 
 @contextlib.asynccontextmanager
+async def _streamable_http_with_auth(
+    url: str,
+    auth,
+    *,
+    terminate_on_close: bool = True,
+):
+    """Streamable HTTP MCP with SigV4 auth (e.g. gateway-websearch)."""
+    client = create_mcp_http_client(auth=auth)
+    async with client:
+        async with streamable_http_client(
+            url,
+            http_client=client,
+            terminate_on_close=terminate_on_close,
+        ) as streams:
+            yield streams
+
+
+@contextlib.asynccontextmanager
 async def _streamable_http_with_headers(
     url: str,
     headers: dict[str, str],
@@ -628,12 +646,19 @@ class MCPClientManager:
             "env": env
         }
     
-    def add_streamable_client(self, name: str, url: str, headers: dict[str, str] = {}) -> None:
+    def add_streamable_client(
+        self,
+        name: str,
+        url: str,
+        headers: dict[str, str] = {},
+        auth_region: str | None = None,
+    ) -> None:
         """Add a new MCP client configuration (lazy initialization)"""
         self.client_configs[name] = {
             "transport": "streamable_http",
             "url": url,
-            "headers": headers
+            "headers": headers,
+            "auth_region": auth_region,
         }
     
     def get_client(self, name: str) -> Optional[MCPClient]:
@@ -651,7 +676,16 @@ class MCPClientManager:
                     try:
                         url = config["url"]
                         hdrs = config.get("headers") or {}
-                        if hdrs:
+                        auth_region = config.get("auth_region")
+                        if auth_region:
+                            import agentcore_sigv4_auth
+                            auth = agentcore_sigv4_auth.AgentCoreSigV4Auth(region=auth_region)
+                            self.clients[name] = MCPClient(
+                                lambda u=url, a=auth: _streamable_http_with_auth(
+                                    u, a, terminate_on_close=True
+                                )
+                            )
+                        elif hdrs:
                             # Build httpx inside the MCP background thread's event loop.
                             # Pre-creating AsyncClient on the main thread binds it to the wrong loop.
                             self.clients[name] = MCPClient(
@@ -874,11 +908,14 @@ def init_mcp_clients(mcp_servers: list):
         if "type" in server_config and server_config["type"] == "streamable_http":
             name = tool  # Use tool name as client name
             url = server_config["url"]
-            headers = server_config.get("headers", {})                
+            headers = server_config.get("headers", {})
+            auth_region = None
+            if server_config.get("auth_type") == "aws_sigv4":
+                auth_region = server_config.get("auth_region", "us-east-1")
             logger.info(f"Adding MCP client - name: {name}, url: {url}, headers: {headers}")
                 
             try:                
-                mcp_manager.add_streamable_client(name, url, headers)
+                mcp_manager.add_streamable_client(name, url, headers, auth_region=auth_region)
                 logger.info(f"Successfully added streamable MCP client for {name}")
             except Exception as e:
                 logger.error(f"Failed to add streamable MCP client for {name}: {e}")

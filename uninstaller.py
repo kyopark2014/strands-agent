@@ -14,6 +14,8 @@ from botocore.exceptions import ClientError
 # Configuration
 project_name = "strands" # at least 3 characters
 region = "us-west-2"
+AGENTCORE_GATEWAY_REGION = "us-east-1"
+AGENTCORE_WEBSEARCH_GATEWAY_NAME = "gateway-websearch"
 
 sts_client = boto3.client("sts", region_name=region)
 account_id = sts_client.get_caller_identity()["Account"]
@@ -27,6 +29,10 @@ ec2_client = boto3.client("ec2", region_name=region)
 elbv2_client = boto3.client("elbv2", region_name=region)
 cloudfront_client = boto3.client("cloudfront", region_name=region)
 bedrock_agent_client = boto3.client("bedrock-agent", region_name=region)
+agentcore_control_client = boto3.client(
+    "bedrock-agentcore-control",
+    region_name=AGENTCORE_GATEWAY_REGION,
+)
 
 # Get account ID if not set
 if not account_id:
@@ -716,7 +722,114 @@ def delete_secrets():
     
     logger.info("✓ Secrets deleted")
 
-def delete_iam_roles():
+def _list_all_agentcore_gateways():
+    gateways = []
+    next_token = None
+    while True:
+        kwargs = {}
+        if next_token:
+            kwargs["nextToken"] = next_token
+        response = agentcore_control_client.list_gateways(**kwargs)
+        gateways.extend(response.get("items", []))
+        next_token = response.get("nextToken")
+        if not next_token:
+            break
+    return gateways
+
+
+def _list_all_agentcore_gateway_targets(gateway_id: str):
+    targets = []
+    next_token = None
+    while True:
+        kwargs = {"gatewayIdentifier": gateway_id}
+        if next_token:
+            kwargs["nextToken"] = next_token
+        response = agentcore_control_client.list_gateway_targets(**kwargs)
+        targets.extend(response.get("items", []))
+        next_token = response.get("nextToken")
+        if not next_token:
+            break
+    return targets
+
+
+def delete_agentcore_websearch_gateway(skip_confirmation: bool = False) -> bool:
+    """Delete AgentCore gateway-websearch and its web-search targets."""
+    logger.info("[6.5/9] Deleting AgentCore Web Search gateway")
+
+    gateway_id = None
+    try:
+        for gateway in _list_all_agentcore_gateways():
+            if gateway.get("name") == AGENTCORE_WEBSEARCH_GATEWAY_NAME:
+                gateway_id = gateway["gatewayId"]
+                logger.info(
+                    f"  Found gateway: {AGENTCORE_WEBSEARCH_GATEWAY_NAME} ({gateway_id})"
+                )
+                break
+
+        if not gateway_id:
+            logger.info(
+                f"  AgentCore gateway not found: {AGENTCORE_WEBSEARCH_GATEWAY_NAME}"
+            )
+            return True
+
+        if not skip_confirmation:
+            print("\n" + "=" * 60)
+            print(
+                f"AgentCore gateway '{AGENTCORE_WEBSEARCH_GATEWAY_NAME}' "
+                f"({gateway_id}) in {AGENTCORE_GATEWAY_REGION} will be deleted."
+            )
+            print("This includes all gateway targets (web-search connector).")
+            print("=" * 60)
+            response = input(
+                "\nDelete AgentCore Web Search gateway? (yes/no) [no]: "
+            ).strip().lower()
+            if response != "yes":
+                logger.info(
+                    "  Skipping AgentCore Web Search gateway deletion (default: no)."
+                )
+                return False
+
+        for target in _list_all_agentcore_gateway_targets(gateway_id):
+            target_id = target.get("targetId")
+            target_name = target.get("name", target_id)
+            try:
+                agentcore_control_client.delete_gateway_target(
+                    gatewayIdentifier=gateway_id,
+                    targetId=target_id,
+                )
+                logger.info(f"  ✓ Deleted gateway target: {target_name} ({target_id})")
+            except ClientError as e:
+                if e.response["Error"]["Code"] != "ResourceNotFoundException":
+                    logger.warning(
+                        f"  Could not delete gateway target {target_name}: {e}"
+                    )
+
+        for _ in range(18):
+            remaining_targets = _list_all_agentcore_gateway_targets(gateway_id)
+            if not remaining_targets:
+                break
+            logger.info(
+                f"  Waiting for {len(remaining_targets)} gateway target(s) to be deleted..."
+            )
+            time.sleep(10)
+
+        agentcore_control_client.delete_gateway(gatewayIdentifier=gateway_id)
+        logger.info(f"  ✓ Deleted gateway: {gateway_id}")
+        logger.info("✓ AgentCore Web Search gateway deleted")
+        return True
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ResourceNotFoundException":
+            logger.info(
+                f"  AgentCore gateway already deleted: {AGENTCORE_WEBSEARCH_GATEWAY_NAME}"
+            )
+            return True
+        logger.warning(f"  Could not delete AgentCore Web Search gateway: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Error deleting AgentCore Web Search gateway: {e}")
+        return False
+
+def delete_iam_roles(delete_agentcore_gateway_role: bool = True):
     """Delete IAM roles and policies."""
     logger.info("[7/9] Deleting IAM roles")
     
@@ -727,6 +840,13 @@ def delete_iam_roles():
         f"role-lambda-rag-for-{project_name}-{region}",
         f"role-agentcore-memory-for-{project_name}-{region}"
     ]
+    if delete_agentcore_gateway_role:
+        role_names.append(f"role-agentcore-gateway-websearch-for-{project_name}")
+    else:
+        logger.info(
+            "  Keeping AgentCore gateway IAM role "
+            f"(role-agentcore-gateway-websearch-for-{project_name})"
+        )
     
     for role_name in role_names:
         try:
@@ -850,6 +970,14 @@ def main():
         action="store_true",
         help="Skip confirmation prompt and proceed with deletion"
     )
+    parser.add_argument(
+        "--delete-agentcore-gateway",
+        action="store_true",
+        help=(
+            "Delete AgentCore gateway-websearch without a separate confirmation prompt "
+            "(default: ask, default answer no)"
+        ),
+    )
     args = parser.parse_args()
 
     if not args.yes:
@@ -870,8 +998,11 @@ def main():
         delete_vpc_resources()
         delete_opensearch_collection()
         delete_knowledge_bases()
+        agentcore_gateway_deleted = delete_agentcore_websearch_gateway(
+            skip_confirmation=args.delete_agentcore_gateway
+        )
         delete_secrets()
-        delete_iam_roles()
+        delete_iam_roles(delete_agentcore_gateway_role=agentcore_gateway_deleted)
         delete_s3_buckets()
         delete_disabled_cloudfront_distributions()
         
