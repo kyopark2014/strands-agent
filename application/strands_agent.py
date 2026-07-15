@@ -1084,6 +1084,39 @@ app = None
 selected_strands_tools = []
 selected_mcp_servers = []
 
+
+def _sanitize_reference_text(text: str, max_len: int) -> str:
+    """Collapse whitespace/newlines and strip markdown that breaks list links."""
+    if not text:
+        return ""
+    cleaned = " ".join(str(text).replace("\r", "\n").split())
+    cleaned = cleaned.replace("```", "`").replace("[", "\\[").replace("]", "\\]")
+    if len(cleaned) > max_len:
+        cleaned = cleaned[: max_len - 3].rstrip(" .") + "..."
+    return cleaned
+
+
+def _format_references_markdown(references: list) -> str:
+    """Build a Reference section safe for markdown list rendering."""
+    lines = ["\n\n### Reference"]
+    for i, reference in enumerate(references, start=1):
+        title = _sanitize_reference_text(reference.get("title") or "Untitled", 120)
+        content = _sanitize_reference_text(reference.get("content") or "", 100)
+        url = (reference.get("url") or "").strip()
+        page = reference.get("page")
+        page_suffix = f" , {page} page" if page is not None else ""
+        if url:
+            lines.append(
+                f"{i}. [{title}]({url}){page_suffix} — {content}" if content
+                else f"{i}. [{title}]({url}){page_suffix}"
+            )
+        else:
+            lines.append(
+                f"{i}. {title}{page_suffix} — {content}" if content
+                else f"{i}. {title}{page_suffix}"
+            )
+    return "\n".join(lines) + "\n"
+
 async def run_strands_agent(query: str, strands_tools: list[str], mcp_servers: list[str], notification_queue):
     """Run the strands agent with streaming and tool notifications."""
     queue = notification_queue
@@ -1181,11 +1214,7 @@ async def run_strands_agent(query: str, strands_tools: list[str], mcp_servers: l
                 logger.info(f"event: {event}")
 
         if references:
-            ref = "\n\n### Reference\n"
-            for i, reference in enumerate(references):
-                content = reference['content'][:100].replace("\n", "")
-                ref += f"{i+1}. [{reference['title']}]({reference['url']}), {content}...\n"
-            final_result += ref
+            final_result += _format_references_markdown(references)
 
         if notification_queue is not None:
             queue.result(final_result if final_result else current)

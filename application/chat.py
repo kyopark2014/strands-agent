@@ -912,13 +912,26 @@ def retrieve(query):
                 url = location["webLocation"]["url"] if location["webLocation"]["url"] is not None else ""
                 name = "WEB"
 
+        page = None
+        raw_page = (result.get("metadata") or {}).get("x-amz-bedrock-kb-document-page-number")
+        if raw_page is not None:
+            try:
+                # Bedrock KB uses 0-based page numbers; convert to 1-based for display
+                page = int(raw_page) + 1
+            except (TypeError, ValueError):
+                page = raw_page
+
+        reference = {
+            "url": url,
+            "title": name,
+            "from": "RAG",
+        }
+        if page is not None:
+            reference["page"] = page
+
         json_docs.append({
-            "contents": text,              
-            "reference": {
-                "url": url,                   
-                "title": name,
-                "from": "RAG"
-            }
+            "contents": text,
+            "reference": reference,
         })
     logger.info(f"json_docs: {json_docs}")
 
@@ -1179,6 +1192,22 @@ def run_rag_using_retrieve_and_generate(query, notification_queue):
 sharing_url = config["sharing_url"] if "sharing_url" in config else None
 s3_prefix = "docs"
 capture_prefix = "captures"
+
+
+def _build_tool_reference(ref_item: dict) -> dict:
+    """Build a display reference from a RAG doc item."""
+    reference = ref_item.get("reference") or {}
+    contents = ref_item.get("contents") or ""
+    content_text = contents[:100] + "..." if len(contents) > 100 else contents
+    result = {
+        "url": reference.get("url"),
+        "title": reference.get("title"),
+        "content": content_text,
+    }
+    if reference.get("page") is not None:
+        result["page"] = reference["page"]
+    return result
+
 
 def get_tool_info(tool_name, tool_content):
     tool_references = []    
@@ -1511,27 +1540,13 @@ def get_tool_info(tool_name, tool_content):
                 for item in json_data:
                     logger.info(f"item: {item}")
                     if "reference" in item and "contents" in item:
-                        url = item["reference"]["url"]
-                        title = item["reference"]["title"]
-                        content_text = item["contents"][:100] + "..." if len(item["contents"]) > 100 else item["contents"]
-                        tool_references.append({
-                            "url": url,
-                            "title": title,
-                            "content": content_text
-                        })
+                        tool_references.append(_build_tool_reference(item))
             else:
                 logger.info(f"json_data is not a dict: {json_data}")
 
                 for item in json_data:
                     if "reference" in item and "contents" in item:
-                        url = item["reference"]["url"]
-                        title = item["reference"]["title"]
-                        content_text = item["contents"][:100] + "..." if len(item["contents"]) > 100 else item["contents"]
-                        tool_references.append({
-                            "url": url,
-                            "title": title,
-                            "content": content_text
-                        })
+                        tool_references.append(_build_tool_reference(item))
                 
             logger.info(f"tool_references: {tool_references}")
 
