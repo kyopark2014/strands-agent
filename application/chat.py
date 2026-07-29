@@ -97,13 +97,20 @@ aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
 
 def get_max_output_tokens(model_id: str = "") -> int:
     """Return the max output tokens based on the model ID."""
-    if "claude-opus-4-6" in model_id:
+    mid = (model_id or "").lower()
+    if "fable" in mid:
         return 128000
-    if "claude-opus-4-5" in model_id:
+    if "claude-sonnet-5" in mid or "claude-5-sonnet" in mid:
+        return 128000
+    if "claude-opus-5" in mid or "claude-5-opus" in mid:
+        return 128000
+    if "claude-opus-4-6" in mid:
+        return 128000
+    if "claude-opus-4-5" in mid:
         return 64000
-    if "claude-opus-4" in model_id or "claude-4-opus" in model_id:
+    if "claude-opus-4" in mid or "claude-4-opus" in mid:
         return 32000
-    if "claude-sonnet-4" in model_id or "claude-4-sonnet" in model_id or "claude-haiku-4" in model_id:
+    if "claude-sonnet-4" in mid or "claude-4-sonnet" in mid or "claude-haiku-4" in mid:
         return 64000
     return 8192
 
