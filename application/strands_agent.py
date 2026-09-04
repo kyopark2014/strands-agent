@@ -665,7 +665,7 @@ async def _streamable_http_with_headers(
     *,
     terminate_on_close: bool = True,
 ):
-    """Custom headers for Streamable HTTP MCP (replaces deprecated streamablehttp_client)."""
+    """Custom headers for Streamable HTTP MCP (replaces deprecated streamable_http_client)."""
     client = create_mcp_http_client(headers=headers)
     async with client:
         async with streamable_http_client(
