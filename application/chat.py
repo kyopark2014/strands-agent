@@ -786,6 +786,19 @@ def general_conversation(query):
                     "messages": messages
                 }
             
+            _mid = (model_id or "").lower()
+            if (
+                "fable" in _mid
+                or "claude-sonnet-5" in _mid
+                or "claude-5-sonnet" in _mid
+                or "claude-opus-5" in _mid
+                or "claude-5-opus" in _mid
+            ):
+                request_body.pop("temperature", None)
+                request_body.pop("top_k", None)
+                request_body.pop("top_p", None)
+                request_body.pop("thinking", None)
+
             # Call streaming response
             response = bedrock_client.invoke_model_with_response_stream(
                 modelId=model_id,
@@ -1058,6 +1071,19 @@ def run_rag_with_knowledge_base(query, st):
                 ]
             }
         
+        _mid = (model_id or "").lower()
+        if (
+            "fable" in _mid
+            or "claude-sonnet-5" in _mid
+            or "claude-5-sonnet" in _mid
+            or "claude-opus-5" in _mid
+            or "claude-5-opus" in _mid
+        ):
+            request_body.pop("temperature", None)
+            request_body.pop("top_k", None)
+            request_body.pop("top_p", None)
+            request_body.pop("thinking", None)
+
         response = bedrock_client.invoke_model(
             modelId=model_id,
             body=json.dumps(request_body)
