@@ -101,6 +101,24 @@ claude_4_7_opus_models = [   # Opus 4.7
     }
 ]
 
+claude_5_0_sonnet_models = [   # Sonnet 5
+    {
+        "bedrock_region": "us-west-2", # Oregon
+        "model_type": "claude",
+        "model_id": "us.anthropic.claude-sonnet-5"
+    },
+    {
+        "bedrock_region": "us-east-1", # N.Virginia
+        "model_type": "claude",
+        "model_id": "us.anthropic.claude-sonnet-5"
+    },
+    {
+        "bedrock_region": "us-east-2", # Ohio
+        "model_type": "claude",
+        "model_id": "us.anthropic.claude-sonnet-5"
+    }
+]
+
 claude_4_6_sonnet_models = [   # Sonnet 4.6
     {
         "bedrock_region": "us-west-2", # Oregon
@@ -220,6 +238,24 @@ openai_gpt_6_astra_models = [   # GPT-6 Astra via Bedrock Converse
         "bedrock_region": "us-east-2", # Ohio
         "model_type": "openai",
         "model_id": "us.openai.gpt-6-astra",
+    },
+]
+
+openai_gpt_6_1_sol_models = [   # GPT-6.1 Sol via Bedrock Converse
+    {
+        "bedrock_region": "us-west-2", # Oregon
+        "model_type": "openai",
+        "model_id": "us.openai.gpt-6.1-sol",
+    },
+    {
+        "bedrock_region": "us-east-1", # N.Virginia
+        "model_type": "openai",
+        "model_id": "us.openai.gpt-6.1-sol",
+    },
+    {
+        "bedrock_region": "us-east-2", # Ohio
+        "model_type": "openai",
+        "model_id": "us.openai.gpt-6.1-sol",
     },
 ]
 
@@ -350,6 +386,8 @@ def get_model_info(model_name):
         models = claude_4_5_sonnet_models
     elif model_name == "Claude 4.5 Haiku":
         models = claude_4_5_haiku_models
+    elif model_name == "Claude 5.0 Sonnet":
+        models = claude_5_0_sonnet_models
     elif model_name == "Claude 4.6 Sonnet":
         models = claude_4_6_sonnet_models
     elif model_name == "Claude 4.6 Opus":
@@ -364,6 +402,8 @@ def get_model_info(model_name):
         models = openai_gpt_5_5_models
     elif model_name == "OpenAI GPT 6 Astra":
         models = openai_gpt_6_astra_models
+    elif model_name == "OpenAI GPT 6.1 Sol":
+        models = openai_gpt_6_1_sol_models
     elif model_name == "OpenAI GPT 6 Sol":
         models = openai_gpt_6_sol_models
     elif model_name == "OpenAI GPT 6 Luna":
