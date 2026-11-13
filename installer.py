@@ -19,7 +19,7 @@ import urllib.error
 # Configuration
 project_name = "strands" # at least 3 characters
 region = "us-west-2"
-AGENTCORE_GATEWAY_REGION = "us-east-1"
+AGENTCORE_GATEWAY_REGION = "us-west-2"
 AGENTCORE_WEBSEARCH_GATEWAY_NAME = "gateway-websearch"
 AGENTCORE_WEBSEARCH_TARGET_NAME = "websearch"
 git_name = "strands-agent"
@@ -3098,7 +3098,7 @@ def _ensure_websearch_gateway_target(gateway_id: str) -> str:
 
 
 def get_or_create_agentcore_websearch_gateway(gateway_service_role_arn: str) -> Dict[str, str]:
-    """Create gateway-websearch with the managed web-search connector in us-east-1."""
+    """Create gateway-websearch with the managed web-search connector in us-west-2."""
     logger.info("[3/10] Creating AgentCore Web Search gateway")
 
     gateway_id = None

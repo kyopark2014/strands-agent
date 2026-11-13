@@ -1013,7 +1013,7 @@ def init_mcp_clients(mcp_servers: list):
             headers = server_config.get("headers", {})
             auth_region = None
             if server_config.get("auth_type") == "aws_sigv4":
-                auth_region = server_config.get("auth_region", "us-east-1")
+                auth_region = server_config.get("auth_region", "us-west-2")
             logger.info(f"Adding MCP client - name: {name}, url: {url}, headers: {headers}")
                 
             try:                
